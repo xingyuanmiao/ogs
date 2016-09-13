@@ -141,13 +141,13 @@ public:
 
 private:
     /// Updates Burgers material parameters in LUBBY2 fashion.
-    void UpdateBurgersProperties(double const t,
+    void updateBurgersProperties(double const t,
                                  ProcessLib::SpatialPosition const& x,
                                  double const s_eff,
                                  MaterialStateVariables& _state);
 
     /// Calculates the 18x1 residual vector.
-    void CalculateResidualBurgers(double const dt,
+    void calculateResidualBurgers(double const dt,
                                   const KelvinVector& strain_curr,
                                   const KelvinVector& stress_curr,
                                   KelvinVector& strain_Kel_curr,
@@ -158,7 +158,7 @@ private:
                                   MaterialStateVariables const& _state);
 
     /// Calculates the 18x18 Jacobian.
-    void CalculateJacobianBurgers(double const t,
+    void calculateJacobianBurgers(double const t,
                                   ProcessLib::SpatialPosition const& x,
                                   double const dt,
                                   JacobianMatrix& Jac,
@@ -176,7 +176,7 @@ private:
     /// and https://support.microsoft.com/en-us/kb/930198
     Eigen::
         Matrix<double, JacobianResidualSize, KelvinVectorSize, Eigen::RowMajor>
-        CalculatedGdEBurgers() const
+        calculatedGdEBurgers() const
     {
         Eigen::Matrix<double,
                       JacobianResidualSize,

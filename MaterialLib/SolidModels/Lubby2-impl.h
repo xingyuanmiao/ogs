@@ -44,7 +44,7 @@ void Lubby2<DisplacementDim>::computeConstitutiveRelation(
 
     // Calculate effective stress and update material properties
     double sig_eff = Invariants::equivalentStress(sigd_j);
-    UpdateBurgersProperties(t, x, sig_eff * state.GM, state);
+    updateBurgersProperties(t, x, sig_eff * state.GM, state);
 
     using LocalJacobianMatrix =
         Eigen::Matrix<double, KelvinVectorSize * 3, KelvinVectorSize * 3,
@@ -72,13 +72,13 @@ void Lubby2<DisplacementDim>::computeConstitutiveRelation(
 
         LocalJacobianMatrix K_loc;
         auto const update_residual = [&](LocalResidualVector& residual) {
-            CalculateResidualBurgers(dt, epsd_i, sigd_j, state.eps_K_j,
+            calculateResidualBurgers(dt, epsd_i, sigd_j, state.eps_K_j,
                                      state.eps_K_t, state.eps_M_j,
                                      state.eps_M_t, residual, state);
         };
 
         auto const update_jacobian = [&](LocalJacobianMatrix& jacobian) {
-            CalculateJacobianBurgers(
+            calculateJacobianBurgers(
                 t, x, dt, jacobian, sig_eff, sigd_j, state.eps_K_j,
                 state);  // for solution dependent Jacobians
         };
@@ -97,7 +97,7 @@ void Lubby2<DisplacementDim>::computeConstitutiveRelation(
             // Calculate effective stress and update material properties
             sig_eff = MaterialLib::SolidModels::Invariants<
                 KelvinVectorSize>::equivalentStress(sigd_j);
-            UpdateBurgersProperties(t, x, sig_eff * state.GM, state);
+            updateBurgersProperties(t, x, sig_eff * state.GM, state);
         };
 
         // TODO Make the following choice of maximum iterations and convergence
@@ -132,7 +132,7 @@ void Lubby2<DisplacementDim>::computeConstitutiveRelation(
 
     // Calculate dGdE for time step
     Eigen::Matrix<double, KelvinVectorSize * 3, KelvinVectorSize,
-                  Eigen::RowMajor> const dGdE = CalculatedGdEBurgers();
+                  Eigen::RowMajor> const dGdE = calculatedGdEBurgers();
 
     // Consistent tangent from local Newton iteration of material
     // functionals.
@@ -145,7 +145,7 @@ void Lubby2<DisplacementDim>::computeConstitutiveRelation(
 }
 
 template <int DisplacementDim>
-void Lubby2<DisplacementDim>::UpdateBurgersProperties(
+void Lubby2<DisplacementDim>::updateBurgersProperties(
     double const t,
     ProcessLib::SpatialPosition const& x,
     double s_eff,
@@ -159,7 +159,7 @@ void Lubby2<DisplacementDim>::UpdateBurgersProperties(
 }
 
 template <int DisplacementDim>
-void Lubby2<DisplacementDim>::CalculateResidualBurgers(
+void Lubby2<DisplacementDim>::calculateResidualBurgers(
     const double dt,
     const KelvinVector& strain_curr,
     const KelvinVector& stress_curr,
@@ -187,7 +187,7 @@ void Lubby2<DisplacementDim>::CalculateResidualBurgers(
 }
 
 template <int DisplacementDim>
-void Lubby2<DisplacementDim>::CalculateJacobianBurgers(
+void Lubby2<DisplacementDim>::calculateJacobianBurgers(
     double const t,
     ProcessLib::SpatialPosition const& x,
     const double dt,
