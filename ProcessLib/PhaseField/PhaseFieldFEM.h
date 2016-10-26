@@ -151,7 +151,7 @@ public:
                               IntegrationMethod, DisplacementDim>(
                 e, is_axially_symmetric, _integration_method);
 
-        auto const shape_matrices_p =
+        auto const shape_matrices_d =
             initShapeMatrices<ShapeFunctionPhaseField, ShapeMatricesTypePhaseField,
                               IntegrationMethod, DisplacementDim>(
                 e, is_axially_symmetric, _integration_method);
@@ -184,8 +184,8 @@ public:
             ip_data._C.resize(kelvin_vector_size, kelvin_vector_size);
 
             ip_data._N_u = shape_matrices_u[ip].N;
-            ip_data._N_p = shape_matrices_p[ip].N;
-            ip_data._dNdx_p = shape_matrices_p[ip].dNdx;
+            ip_data._N_d = shape_matrices_d[ip].N;
+            ip_data._dNdx_d = shape_matrices_d[ip].dNdx;
         }
     }
 
@@ -208,6 +208,7 @@ public:
                               std::vector<double>& local_rhs_data,
                               std::vector<double>& local_Jac_data) override
     {
+        /*
         auto const local_matrix_size = local_x.size();
         assert(local_matrix_size == phasefield_size + displacement_size);
 
@@ -322,7 +323,7 @@ public:
 
             local_rhs.template block<_size, 1>(phasefield_index, 0)
                 .noalias() += (N_d.transpose() * d_dot / M +
-                               dNdx_d.transpose() * 2 * gc * ls * grad_d +
+                               dNdx_d.transpose() * 2 * gc * ls * dNdx_d * d +
                                N_d.transpose() * d * eps.transpose() * C * eps -
                                N_d.transpose() * gc / 2. / ls * (1 - d)) * w;
 
@@ -348,6 +349,7 @@ public:
             .template block<phasefield_size, displacement_size>(
                 phasefield_index, displacement_index)
             .noalias() += Kdu;
+        */
     }
 
     void preTimestepConcrete(std::vector<double> const& /*local_x*/,
