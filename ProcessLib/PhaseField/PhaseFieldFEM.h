@@ -60,13 +60,11 @@ struct IntegrationPointData final
     }
 #endif  // _MSC_VER
 
-    typename ShapeMatrixType::NodalRowVectorType _N_u;
+    typename ShapeMatrixType::NodalRowVectorType _N;
+    typename ShapeMatrixType::GlobalDimNodalMatrixType _dNdx;
     typename BMatricesType::BMatrixType _b_matrices;
     typename BMatricesType::KelvinVectorType _sigma, _sigma_prev;
     typename BMatricesType::KelvinVectorType _eps, _eps_prev;
-
-    typename ShapeMatrixType::NodalRowVectorType _N_d;
-    typename ShapeMatrixType::GlobalDimNodalMatrixType _dNdx_d;
 
     MaterialLib::Solids::MechanicsBase<DisplacementDim>& _solid_material;
     std::unique_ptr<typename MaterialLib::Solids::MechanicsBase<
@@ -137,13 +135,8 @@ public:
 
         _ip_data.reserve(n_integration_points);
 
-        auto const shape_matrices_u =
+        auto const shape_matrices =
             initShapeMatrices<ShapeFunction, ShapeMatricesType,
-                              IntegrationMethod, DisplacementDim>(
-                e, is_axially_symmetric, _integration_method);
-
-        auto const shape_matrices_d =
-            initShapeMatrices<ShapeFunction, ShapeMatrixType,
                               IntegrationMethod, DisplacementDim>(
                 e, is_axially_symmetric, _integration_method);
 
@@ -154,7 +147,7 @@ public:
             auto& ip_data = _ip_data[ip];
             _ip_data[ip].integration_weight =
                 _integration_method.getWeightedPoint(ip).getWeight() *
-                shape_matrices_u[ip].detJ;
+                shape_matrices[ip].detJ;
             ip_data._b_matrices.resize(
                 kelvin_vector_size,
                 ShapeFunction::NPOINTS * DisplacementDim);
@@ -162,11 +155,11 @@ public:
             auto const x_coord =
                 interpolateXCoordinate<ShapeFunction,
                                        ShapeMatricesType>(
-                    e, shape_matrices_u[ip].N);
+                    e, shape_matrices[ip].N);
             LinearBMatrix::computeBMatrix<DisplacementDim,
                                           ShapeFunction::NPOINTS>(
-                shape_matrices_u[ip].dNdx, ip_data._b_matrices,
-                is_axially_symmetric, shape_matrices_u[ip].N, x_coord);
+                shape_matrices[ip].dNdx, ip_data._b_matrices,
+                is_axially_symmetric, shape_matrices[ip].N, x_coord);
 
             ip_data._sigma.resize(kelvin_vector_size);
             ip_data._sigma_prev.resize(kelvin_vector_size);
@@ -174,9 +167,8 @@ public:
             ip_data._eps_prev.resize(kelvin_vector_size);
             ip_data._C.resize(kelvin_vector_size, kelvin_vector_size);
 
-            ip_data._N_u = shape_matrices_u[ip].N;
-            ip_data._N_d = shape_matrices_d[ip].N;
-            ip_data._dNdx_d = shape_matrices_d[ip].dNdx;
+            ip_data._N = shape_matrices[ip].N;
+            ip_data._dNdx = shape_matrices[ip].dNdx;
         }
     }
 
@@ -203,7 +195,7 @@ public:
         assert(local_matrix_size == phasefield_size + displacement_size);
 
         auto d =
-            Eigen::Map<typename ShapeMatrixType::template VectorType<
+            Eigen::Map<typename ShapeMatricesType::template VectorType<
                 phasefield_size> const>(local_x.data() + phasefield_index,
                                       phasefield_size);
 
@@ -212,7 +204,7 @@ public:
                                       displacement_size);
 
         auto d_dot =
-            Eigen::Map<typename ShapeMatrixType::template VectorType<
+            Eigen::Map<typename ShapeMatricesType::template VectorType<
                 phasefield_size> const>(local_xdot.data() + phasefield_index,
                                       phasefield_size);
 
@@ -233,10 +225,10 @@ public:
             Kdu;
         Kdu.setZero(phasefield_size, displacement_size);
 
-        typename ShapeMatrixType::NodalMatrixType Kdd;
+        typename ShapeMatricesType::NodalMatrixType Kdd;
         Kdd.setZero(phasefield_size, phasefield_size);
 
-        typename ShapeMatrixType::NodalMatrixType Ddd;
+        typename ShapeMatricesType::NodalMatrixType Ddd;
         Ddd.setZero(phasefield_size, phasefield_size);
 
         double const& dt = _process_data.dt;
@@ -251,8 +243,7 @@ public:
             x_position.setIntegrationPoint(ip);
             auto const& w = _ip_data[ip].integration_weight;
 
-            auto const& N_d = _ip_data[ip]._N_d;
-            auto const& dNdx_d = _ip_data[ip]._dNdx_d;
+            auto const& dNdx = _ip_data[ip]._dNdx;
 
             auto const& B = _ip_data[ip]._b_matrices;
             auto const& sigma = _ip_data[ip]._sigma;
@@ -290,46 +281,47 @@ public:
 
             typename ShapeMatricesType::template MatrixType<DisplacementDim,
                                                             displacement_size>
-                N_u = ShapeMatricesType::template MatrixType<
+                N = ShapeMatricesType::template MatrixType<
                     DisplacementDim,
                     displacement_size>::Zero(DisplacementDim,
                                              displacement_size);
 
             for (int i = 0; i < DisplacementDim; ++i)
-                N_u.template block<1, displacement_size / DisplacementDim>(
+                N.template block<1, displacement_size / DisplacementDim>(
                        i, i * displacement_size / DisplacementDim)
-                    .noalias() = _ip_data[ip]._N_u;
+                    .noalias() = _ip_data[ip]._N;
 
             local_rhs
                 .template block<displacement_size, 1>(displacement_index, 0)
                 .noalias() -=
-                (B.transpose() * sigma - N_u.transpose() * rho_sr * b) * w;
+                (B.transpose() * sigma - N.transpose() * rho_sr * b) * w;
 
             //
             // displacement equation, phasefield part
             //
-            Kud.noalias() += B.transpose() * 2. * d * C * eps * N_d * w;
+            Kud.noalias() += B.transpose() * 2. * d * C * eps * N * w;
 
             //
             // phasefield equation, displacement part
             //
-            Kdu.noalias() += N_d.transpose() * 2. * d * (C * eps).transpose() * B * w;
+            Kdu.noalias() += N.transpose() * 2. * d * (C * eps).transpose() * B * w;
             // TODO Check if equal to Kud.tr
 
             //
             // phasefield equation, phasefield part.
             //
-            Kdd.noalias() += (dNdx_d.transpose() * 2. * gc * ls * dNdx_d +
-                              N_d.transpose() * eps.transpose() * C * eps * N_d +
-                              N_d.transpose() * gc / 2. / ls * N_d) * w;
+            Kdd.noalias() += (dNdx.transpose() * 2. * gc * ls * dNdx +
+                              N.transpose() * eps.transpose() * C * eps * N +
+                              N.transpose() * gc / 2. / ls * N) * w;
 
-            Ddd.noalias() += N_d.transpose() / M * N_d * w;
+            Ddd.noalias() += N.transpose() / M * N * w;
 
             local_rhs.template block<phasefield_size, 1>(phasefield_index, 0)
-                .noalias() += (N_d.transpose() * d_dot / M +
-                               dNdx_d.transpose() * 2 * gc * ls * dNdx_d * d +
-                               N_d.transpose() * N_d * d * eps.transpose() * C * eps -
-                               N_d.transpose() * gc / 2. / ls * (1 - N_d.dot(d))) * w;
+                .noalias() += (N.transpose() * d_dot / M +
+                               dNdx.transpose() * 2. * gc * ls * dNdx * d +
+                               N.transpose() * N * d * eps.transpose() * C * eps -
+                               N.transpose() * 0.5 * gc / ls +
+                               N.transpose() * 0.5 * gc / ls * N * d) * w;
 
             //
             // phasefield equation, displacement part.
@@ -373,7 +365,7 @@ private:
 
     std::vector<
         IntegrationPointData<BMatricesType, ShapeMatricesType,
-                             ShapeMatrixType, DisplacementDim>>
+                             DisplacementDim>>
         _ip_data;
 
     IntegrationMethod _integration_method;
