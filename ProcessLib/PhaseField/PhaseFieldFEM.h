@@ -27,14 +27,12 @@
 #include "ProcessLib/Utils/InitShapeMatrices.h"
 
 #include "PhaseFieldProcessData.h"
-#include "LowerDimShapeTable.h"
 
 namespace ProcessLib
 {
 namespace PhaseField
 {
-template <typename BMatricesType, typename ShapeMatrixTypeDisplacement,
-          typename ShapeMatricesTypePhaseField, int DisplacementDim>
+template <typename BMatricesType, typename ShapeMatrixType, int DisplacementDim>
 struct IntegrationPointData final
 {
     explicit IntegrationPointData(
@@ -62,13 +60,13 @@ struct IntegrationPointData final
     }
 #endif  // _MSC_VER
 
-    typename ShapeMatrixTypeDisplacement::NodalRowVectorType _N_u;
+    typename ShapeMatrixType::NodalRowVectorType _N_u;
     typename BMatricesType::BMatrixType _b_matrices;
     typename BMatricesType::KelvinVectorType _sigma, _sigma_prev;
     typename BMatricesType::KelvinVectorType _eps, _eps_prev;
 
-    typename ShapeMatricesTypePhaseField::NodalRowVectorType _N_d;
-    typename ShapeMatricesTypePhaseField::GlobalDimNodalMatrixType _dNdx_d;
+    typename ShapeMatrixType::NodalRowVectorType _N_d;
+    typename ShapeMatrixType::GlobalDimNodalMatrixType _dNdx_d;
 
     MaterialLib::Solids::MechanicsBase<DisplacementDim>& _solid_material;
     std::unique_ptr<typename MaterialLib::Solids::MechanicsBase<
@@ -89,7 +87,7 @@ struct IntegrationPointData final
         double const t,
         SpatialPosition const& x_position,
         double const dt,
-        Eigen::Map<typename ShapeMatrixTypeDisplacement::
+        Eigen::Map<typename ShapeMatrixType::
                        NodalDOFVectorType const> const& u)
     {
         _eps.noalias() = _b_matrices * u;
@@ -105,28 +103,21 @@ class PhaseFieldLocalAssembler : public ProcessLib::LocalAssemblerInterface
 {
 public:
     using ShapeMatricesType =
-        ShapeMatrixPolicyType<ShapeFunctionDisplacement, DisplacementDim>;
+        ShapeMatrixPolicyType<ShapeFunction, DisplacementDim>;
 
     // Types for displacement.
-    // (Higher order elements = ShapeFunctionDisplacement).
+    // (Higher order elements = ShapeFunction).
     using NodalMatrixType = typename ShapeMatricesType::NodalMatrixType;
     using NodalVectorType = typename ShapeMatricesType::NodalVectorType;
     using ShapeMatrices = typename ShapeMatricesType::ShapeMatrices;
     using BMatricesType =
-        BMatrixPolicyType<ShapeFunctionDisplacement, DisplacementDim>;
+        BMatrixPolicyType<ShapeFunction, DisplacementDim>;
 
     using BMatrixType = typename BMatricesType::BMatrixType;
     using StiffnessMatrixType = typename BMatricesType::StiffnessMatrixType;
     using NodalForceVectorType = typename BMatricesType::NodalForceVectorType;
     using NodalDisplacementVectorType =
         typename BMatricesType::NodalForceVectorType;
-
-    // Types for phasefield.
-    // (Lower order elements = Order(ShapeFunctionDisplacement) - 1).
-    using ShapeFunctionPhaseField =
-        typename LowerDim<ShapeFunctionDisplacement>::type;
-    using ShapeMatricesTypePhaseField =
-        ShapeMatrixPolicyType<ShapeFunctionPhaseField, DisplacementDim>;
 
     PhaseFieldLocalAssembler(PhaseFieldLocalAssembler const&) = delete;
     PhaseFieldLocalAssembler(PhaseFieldLocalAssembler&&) = delete;
@@ -147,12 +138,12 @@ public:
         _ip_data.reserve(n_integration_points);
 
         auto const shape_matrices_u =
-            initShapeMatrices<ShapeFunctionDisplacement, ShapeMatricesType,
+            initShapeMatrices<ShapeFunction, ShapeMatricesType,
                               IntegrationMethod, DisplacementDim>(
                 e, is_axially_symmetric, _integration_method);
 
         auto const shape_matrices_d =
-            initShapeMatrices<ShapeFunctionPhaseField, ShapeMatricesTypePhaseField,
+            initShapeMatrices<ShapeFunction, ShapeMatrixType,
                               IntegrationMethod, DisplacementDim>(
                 e, is_axially_symmetric, _integration_method);
 
@@ -166,14 +157,14 @@ public:
                 shape_matrices_u[ip].detJ;
             ip_data._b_matrices.resize(
                 kelvin_vector_size,
-                ShapeFunctionDisplacement::NPOINTS * DisplacementDim);
+                ShapeFunction::NPOINTS * DisplacementDim);
 
             auto const x_coord =
-                interpolateXCoordinate<ShapeFunctionDisplacement,
+                interpolateXCoordinate<ShapeFunction,
                                        ShapeMatricesType>(
                     e, shape_matrices_u[ip].N);
             LinearBMatrix::computeBMatrix<DisplacementDim,
-                                          ShapeFunctionDisplacement::NPOINTS>(
+                                          ShapeFunction::NPOINTS>(
                 shape_matrices_u[ip].dNdx, ip_data._b_matrices,
                 is_axially_symmetric, shape_matrices_u[ip].N, x_coord);
 
@@ -208,12 +199,11 @@ public:
                               std::vector<double>& local_rhs_data,
                               std::vector<double>& local_Jac_data) override
     {
-        /*
         auto const local_matrix_size = local_x.size();
         assert(local_matrix_size == phasefield_size + displacement_size);
 
         auto d =
-            Eigen::Map<typename ShapeMatricesTypePhaseField::template VectorType<
+            Eigen::Map<typename ShapeMatrixType::template VectorType<
                 phasefield_size> const>(local_x.data() + phasefield_index,
                                       phasefield_size);
 
@@ -222,12 +212,9 @@ public:
                                       displacement_size);
 
         auto d_dot =
-            Eigen::Map<typename ShapeMatricesTypePhaseField::template VectorType<
+            Eigen::Map<typename ShapeMatrixType::template VectorType<
                 phasefield_size> const>(local_xdot.data() + phasefield_index,
                                       phasefield_size);
-        auto u_dot = Eigen::Map<typename ShapeMatricesType::template VectorType<
-            displacement_size> const>(local_xdot.data() + displacement_index,
-                                      displacement_size);
 
         auto local_Jac = MathLib::createZeroedMatrix<StiffnessMatrixType>(
             local_Jac_data, local_matrix_size, local_matrix_size);
@@ -235,6 +222,22 @@ public:
         auto local_rhs =
             MathLib::createZeroedVector<NodalDisplacementVectorType>(
                 local_rhs_data, local_matrix_size);
+
+        typename ShapeMatricesType::template MatrixType<displacement_size,
+                                                        phasefield_size>
+            Kud;
+        Kud.setZero(displacement_size, phasefield_size);
+
+        typename ShapeMatricesType::template MatrixType<phasefield_size,
+                                                        displacement_size>
+            Kdu;
+        Kdu.setZero(phasefield_size, displacement_size);
+
+        typename ShapeMatrixType::NodalMatrixType Kdd;
+        Kdd.setZero(phasefield_size, phasefield_size);
+
+        typename ShapeMatrixType::NodalMatrixType Ddd;
+        Ddd.setZero(phasefield_size, phasefield_size);
 
         double const& dt = _process_data.dt;
 
@@ -283,7 +286,7 @@ public:
             local_Jac
                 .template block<displacement_size, displacement_size>(
                     displacement_index, displacement_index)
-                .noalias() += B.transpose() * (d * d + k) * C * B * w;
+                .noalias() += B.transpose() * (d.transpose() * d + k) * C * B * w;
 
             typename ShapeMatricesType::template MatrixType<DisplacementDim,
                                                             displacement_size>
@@ -311,21 +314,22 @@ public:
             // phasefield equation, displacement part
             //
             Kdu.noalias() += N_d.transpose() * 2. * d * (C * eps).transpose() * B * w;
+            // TODO Check if equal to Kud.tr
 
             //
             // phasefield equation, phasefield part.
             //
             Kdd.noalias() += (dNdx_d.transpose() * 2. * gc * ls * dNdx_d +
-                              N_d.transpose() * eps.transpose() * C * eps +
+                              N_d.transpose() * eps.transpose() * C * eps * N_d +
                               N_d.transpose() * gc / 2. / ls * N_d) * w;
 
             Ddd.noalias() += N_d.transpose() / M * N_d * w;
 
-            local_rhs.template block<_size, 1>(phasefield_index, 0)
+            local_rhs.template block<phasefield_size, 1>(phasefield_index, 0)
                 .noalias() += (N_d.transpose() * d_dot / M +
                                dNdx_d.transpose() * 2 * gc * ls * dNdx_d * d +
-                               N_d.transpose() * d * eps.transpose() * C * eps -
-                               N_d.transpose() * gc / 2. / ls * (1 - d)) * w;
+                               N_d.transpose() * N_d * d * eps.transpose() * C * eps -
+                               N_d.transpose() * gc / 2. / ls * (1 - N_d.dot(d))) * w;
 
             //
             // phasefield equation, displacement part.
@@ -349,7 +353,6 @@ public:
             .template block<phasefield_size, displacement_size>(
                 phasefield_index, displacement_index)
             .noalias() += Kdu;
-        */
     }
 
     void preTimestepConcrete(std::vector<double> const& /*local_x*/,
@@ -370,17 +373,17 @@ private:
 
     std::vector<
         IntegrationPointData<BMatricesType, ShapeMatricesType,
-                             ShapeMatricesTypePhaseField, DisplacementDim>>
+                             ShapeMatrixType, DisplacementDim>>
         _ip_data;
 
     IntegrationMethod _integration_method;
     MeshLib::Element const& _element;
 
     static const int phasefield_index = 0;
-    static const int phasefield_size = ShapeFunctionPhaseField::NPOINTS;
-    static const int displacement_index = ShapeFunctionPhaseField::NPOINTS;
+    static const int phasefield_size = ShapeFunction::NPOINTS;
+    static const int displacement_index = ShapeFunction::NPOINTS;
     static const int displacement_size =
-        ShapeFunctionDisplacement::NPOINTS * DisplacementDim;
+        ShapeFunction::NPOINTS * DisplacementDim;
     static const int kelvin_vector_size =
         KelvinVectorDimensions<DisplacementDim>::value;
 };
