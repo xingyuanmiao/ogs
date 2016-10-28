@@ -110,10 +110,12 @@ public:
     using BMatricesType = BMatrixPolicyType<ShapeFunction, DisplacementDim>;
 
     using BMatrixType = typename BMatricesType::BMatrixType;
-    using StiffnessMatrixType = typename BMatricesType::StiffnessMatrixType;
     using NodalForceVectorType = typename BMatricesType::NodalForceVectorType;
-    using NodalDisplacementVectorType =
-        typename BMatricesType::NodalForceVectorType;
+    using RhsVector = typename ShapeMatricesType::template VectorType<
+        ShapeFunction::NPOINTS + ShapeFunction::NPOINTS * DisplacementDim>;
+    using JacobianMatrix = typename ShapeMatricesType::template MatrixType<
+        ShapeFunction::NPOINTS + ShapeFunction::NPOINTS * DisplacementDim,
+        ShapeFunction::NPOINTS + ShapeFunction::NPOINTS * DisplacementDim>;
 
     PhaseFieldLocalAssembler(PhaseFieldLocalAssembler const&) = delete;
     PhaseFieldLocalAssembler(PhaseFieldLocalAssembler&&) = delete;
@@ -202,12 +204,11 @@ public:
             phasefield_size> const>(local_xdot.data() + phasefield_index,
                                     phasefield_size);
 
-        auto local_Jac = MathLib::createZeroedMatrix<StiffnessMatrixType>(
+        auto local_Jac = MathLib::createZeroedMatrix<JacobianMatrix>(
             local_Jac_data, local_matrix_size, local_matrix_size);
 
-        auto local_rhs =
-            MathLib::createZeroedVector<NodalDisplacementVectorType>(
-                local_rhs_data, local_matrix_size);
+        auto local_rhs = MathLib::createZeroedVector<RhsVector>(
+            local_rhs_data, local_matrix_size);
 
         typename ShapeMatricesType::template MatrixType<displacement_size,
                                                         phasefield_size>
@@ -238,6 +239,7 @@ public:
             auto const& w = _ip_data[ip].integration_weight;
 
             auto const& dNdx = _ip_data[ip]._dNdx;
+            auto const& N = _ip_data[ip]._N;
 
             auto const& B = _ip_data[ip]._b_matrices;
             auto const& sigma = _ip_data[ip]._sigma;
@@ -266,58 +268,52 @@ public:
             //
             _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u);
 
+            double const d_ip = N.dot(d);
             local_Jac
                 .template block<displacement_size, displacement_size>(
                     displacement_index, displacement_index)
                 .noalias() +=
-                B.transpose() * (d.transpose() * d + k) * C * B * w;
+                B.transpose() * (d_ip*d_ip + k) * C * B * w;
 
             typename ShapeMatricesType::template MatrixType<DisplacementDim,
                                                             displacement_size>
-                N = ShapeMatricesType::template MatrixType<
+                N_u = ShapeMatricesType::template MatrixType<
                     DisplacementDim,
                     displacement_size>::Zero(DisplacementDim,
                                              displacement_size);
 
             for (int i = 0; i < DisplacementDim; ++i)
-                N.template block<1, displacement_size / DisplacementDim>(
+                N_u.template block<1, displacement_size / DisplacementDim>(
                      i, i * displacement_size / DisplacementDim)
-                    .noalias() = _ip_data[ip]._N;
+                    .noalias() = N;
 
             local_rhs
                 .template block<displacement_size, 1>(displacement_index, 0)
                 .noalias() -=
-                (B.transpose() * sigma - N.transpose() * rho_sr * b) * w;
+                (B.transpose() * sigma - N_u.transpose() * rho_sr * b) * w;
 
             //
             // displacement equation, phasefield part
             //
-            Kud.noalias() += B.transpose() * 2. * d * C * eps * N * w;
-
-            //
-            // phasefield equation, displacement part
-            //
-            Kdu.noalias() +=
-                N.transpose() * 2. * d * (C * eps).transpose() * B * w;
-            // TODO Check if equal to Kud.tr
+            Kud.noalias() += B.transpose() * 2 * d_ip * C * eps * N * w;
 
             //
             // phasefield equation, phasefield part.
             //
-            Kdd.noalias() += (dNdx.transpose() * 2. * gc * ls * dNdx +
+            Kdd.noalias() += (dNdx.transpose() * 2 * gc * ls * dNdx +
                               N.transpose() * eps.transpose() * C * eps * N +
-                              N.transpose() * gc / 2. / ls * N) *
+                              N.transpose() * gc / 2 / ls * N) *
                              w;
 
             Ddd.noalias() += N.transpose() / M * N * w;
 
+            double const d_dot_ip = N.dot(d_dot);
             local_rhs.template block<phasefield_size, 1>(phasefield_index, 0)
                 .noalias() +=
-                (N.transpose() * d_dot / M +
-                 dNdx.transpose() * 2. * gc * ls * dNdx * d +
-                 N.transpose() * N * d * eps.transpose() * C * eps -
-                 N.transpose() * 0.5 * gc / ls +
-                 N.transpose() * 0.5 * gc / ls * N * d) *
+                (N.transpose() * d_dot_ip / M +
+                 dNdx.transpose() * 2 * gc * ls * dNdx * d +
+                 N.transpose() * d_ip * eps.transpose() * C * eps -
+                 N.transpose() * 0.5 * gc / ls * (1 - d_ip)) *
                 w;
 
             //
