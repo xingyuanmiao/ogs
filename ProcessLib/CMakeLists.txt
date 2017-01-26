@@ -49,6 +49,9 @@ APPEND_SOURCE_FILES(SOURCES HT)
 add_subdirectory(CalculateSurfaceFlux)
 APPEND_SOURCE_FILES(SOURCES CalculateSurfaceFlux)
 
+add_subdirectory(PhaseField)
+APPEND_SOURCE_FILES(SOURCES PhaseField)
+
 APPEND_SOURCE_FILES(SOURCES Utils)
 
 add_library(ProcessLib ${SOURCES})

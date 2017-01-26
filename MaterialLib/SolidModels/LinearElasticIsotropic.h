@@ -16,7 +16,7 @@ namespace MaterialLib
 namespace Solids
 {
 template <int DisplacementDim>
-class LinearElasticIsotropic final : public MechanicsBase<DisplacementDim>
+class LinearElasticIsotropic : public MechanicsBase<DisplacementDim>
 {
 public:
     /// Variables specific to the material model
@@ -44,6 +44,12 @@ public:
         {
             return _youngs_modulus(t, x)[0] /
                    (2 * (1 + _poissons_ratio(t, x)[0]));
+        }
+
+        double bulk_modulus(double const t, X const& x) const
+        {
+            return _youngs_modulus(t, x)[0] /
+                   (3 * (1 - 2 * _poissons_ratio(t, x)[0]));
         }
 
     private:
@@ -99,7 +105,7 @@ public:
         return true;
     }
 
-private:
+protected:
     MaterialProperties _mp;
 };
 
