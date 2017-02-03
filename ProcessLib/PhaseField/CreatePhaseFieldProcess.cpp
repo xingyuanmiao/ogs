@@ -48,9 +48,9 @@ std::unique_ptr<Process> createPhaseFieldProcess(
 
     auto process_variables = findProcessVariables(
         variables, pv_config,
-        {//! \ogs_file_param_special{prj__processes__process__PHASE_FIELD__process_variables__pressure}
+        {//! \ogs_file_param_special{prj__processes__process__PHASE_FIELD__process_variables__phasefield}
          "phasefield",
-        //! \ogs_file_param_special{prj__processes__process__PHASE_FIELD__process_variables__displacement}
+         //! \ogs_file_param_special{prj__processes__process__PHASE_FIELD__process_variables__displacement}
          "displacement"});
 
     DBUG("Associate displacement with process variable \'%s\'.",
