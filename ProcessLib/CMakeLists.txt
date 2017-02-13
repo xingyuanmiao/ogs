@@ -25,6 +25,9 @@ APPEND_SOURCE_FILES(SOURCES TwoPhaseFlowWithPP)
 add_subdirectory(SmallDeformation)
 APPEND_SOURCE_FILES(SOURCES SmallDeformation)
 
+add_subdirectory(TMPhaseField)
+APPEND_SOURCE_FILES(SOURCES TMPhaseField)
+
 add_subdirectory(LIE/SmallDeformation)
 add_subdirectory(LIE/HydroMechanics)
 APPEND_SOURCE_FILES(SOURCES LIE/BoundaryCondition)

@@ -7,9 +7,9 @@ AddTest(
     WRAPPER time
     TESTER vtkdiff
     REQUIREMENTS NOT OGS_USE_MPI
-    ABSTOL 5e-2 RELTOL 5e-1
+    ABSTOL 6e-2 RELTOL 6.5e-1
     DIFF_DATA
-    beam_1e2_out_anal.vtu beam_1e2_out_pcs_0_ts_1500000_t_15.000000.vtu phasefield_anal phasefield
+    beam_1e2_out_anal.vtu beam_1e2_pcs_0_ts_2200000_t_22.000000.vtu phasefield_anal phasefield
 )
 # PhaseField; Small deformations, linear elastic, crack propagation (PFL)
 AddTest(

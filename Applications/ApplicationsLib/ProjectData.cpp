@@ -42,6 +42,7 @@
 #include "ProcessLib/RichardsFlow/CreateRichardsFlowProcess.h"
 #include "ProcessLib/LiquidFlow/CreateLiquidFlowProcess.h"
 #include "ProcessLib/PhaseField/CreatePhaseFieldProcess.h"
+#include "ProcessLib/TMPhaseField/CreateTMPhaseFieldProcess.h"
 #include "ProcessLib/SmallDeformation/CreateSmallDeformationProcess.h"
 #include "ProcessLib/TES/CreateTESProcess.h"
 #include "ProcessLib/HT/CreateHTProcess.h"
@@ -397,6 +398,26 @@ void ProjectData::parseProcesses(BaseLib::ConfigTree const& processes_config,
                 case 3:
                     process =
                         ProcessLib::PhaseField::createPhaseFieldProcess<
+                            3>(*_mesh_vec[0], std::move(jacobian_assembler),
+                               _process_variables, _parameters,
+                               integration_order, process_config);
+                    break;
+            }
+        }
+        else if (type == "TMPHASE_FIELD")
+        {
+            switch (process_config.getConfigParameter<int>("dimension"))
+            {
+                case 2:
+                    process =
+                        ProcessLib::TMPhaseField::createTMPhaseFieldProcess<
+                            2>(*_mesh_vec[0], std::move(jacobian_assembler),
+                               _process_variables, _parameters,
+                               integration_order, process_config);
+                    break;
+                case 3:
+                    process =
+                        ProcessLib::TMPhaseField::createTMPhaseFieldProcess<
                             3>(*_mesh_vec[0], std::move(jacobian_assembler),
                                _process_variables, _parameters,
                                integration_order, process_config);
