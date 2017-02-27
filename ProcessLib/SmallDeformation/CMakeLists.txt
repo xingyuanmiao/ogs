@@ -204,3 +204,19 @@ AddTest(
     uc_01_pcs_0_ts_5000_t_5.000000.vtu uc_01_pcs_0_ts_5000_t_5.000000.vtu displacement displacement
     uc_01_pcs_0_ts_5000_t_5.000000.vtu uc_01_pcs_0_ts_5000_t_5.000000.vtu sigma_yy sigma_yy
 )
+
+# Pressure boundary condition
+AddTest(
+    NAME LARGE_SmallDeformation_PressureBC_hollow_sphere
+    PATH Mechanics/Linear/PressureBC
+    EXECUTABLE ogs
+    EXECUTABLE_ARGS hollow_sphere.prj
+    TESTER vtkdiff
+    REQUIREMENTS OGS_USE_LIS
+    ABSTOL 1e-15 RELTOL 0
+    DIFF_DATA
+    expected_hollow_sphere_pcs_0_ts_1_t_1.000000.vtu hollow_sphere_pcs_0_ts_1_t_1.000000.vtu displacement displacement
+    expected_hollow_sphere_pcs_0_ts_1_t_1.000000.vtu hollow_sphere_pcs_0_ts_1_t_1.000000.vtu sigma_xx sigma_xx
+    expected_hollow_sphere_pcs_0_ts_1_t_1.000000.vtu hollow_sphere_pcs_0_ts_1_t_1.000000.vtu sigma_yy sigma_yy
+    expected_hollow_sphere_pcs_0_ts_1_t_1.000000.vtu hollow_sphere_pcs_0_ts_1_t_1.000000.vtu sigma_zz sigma_zz
+)
