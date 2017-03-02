@@ -109,16 +109,16 @@ struct IntegrationPointData final
         double& delta_T)
     {
         _eps.noalias() = _b_matrices * u;
+        _eps_m.noalias() = _eps - alpha * delta_T * Invariants::identity2;
         _solid_material.computeConstitutiveRelation(
             t, x_position, dt, _eps_m_prev, _eps_m, _sigma_prev, _sigma, _C,
             *_material_state_variables);
 
         static_cast<MaterialLib::Solids::TMPhaseFieldExtension<DisplacementDim>&>(
             _solid_material)
-            .specialFunction(t, x_position, _eps_m,
+            .specialFunction(t, x_position, _eps,
                              strain_energy_tensile, _sigma_tensile,
                              _sigma_compressive);
-        _eps_m.noalias() = _eps - alpha * delta_T * Invariants::identity2;
     }
 };
 
@@ -282,6 +282,19 @@ public:
         auto local_Jac = MathLib::createZeroedMatrix<JacobianMatrix>(
             local_Jac_data, local_matrix_size, local_matrix_size);
 
+        Eigen::MatrixXd local_Jac_numerical = Eigen::MatrixXd::Zero(
+            local_matrix_size, local_matrix_size);
+
+        // auto local_K = MathLib::createZeroedMatrix<JacobianMatrix>(
+        //     local_K_data, local_matrix_size, local_matrix_size);
+
+        // auto local_M = MathLib::createZeroedMatrix<JacobianMatrix>(
+        //     local_M_data, local_matrix_size, local_matrix_size);
+
+        Eigen::MatrixXd local_b_p = Eigen::VectorXd::Zero(local_matrix_size);
+
+        Eigen::MatrixXd local_b_m = Eigen::VectorXd::Zero(local_matrix_size);
+
         auto local_rhs = MathLib::createZeroedVector<RhsVector>(
             local_rhs_data, local_matrix_size);
 
@@ -394,18 +407,23 @@ public:
                      i, i * displacement_size / DisplacementDim)
                     .noalias() = N;
 
+            using Invariants =
+                MaterialLib::SolidModels::Invariants<kelvin_vector_size>;
+
             local_rhs
                 .template block<displacement_size, 1>(displacement_index, 0)
                 .noalias() -=
                 (B.transpose() * ((d_ip*d_ip + k) * sigma_tensile + sigma_compressive)
                                   - N_u.transpose() * rho_sr * b) * w;
+            local_rhs
+                .template block<displacement_size, 1>(displacement_index, 0)
+                .noalias() -=
+                B.transpose() * C * alpha * T0 * Invariants::identity2 * w;
 
             // local_rhs
             //    .template block<displacement_size, 1>(displacement_index, 0)
             //    .noalias() -=
             //    B.transpose() * (d_ip*d_ip + k) * (C * alpha * T0 * Invariants::identity2) * w;
-            using Invariants =
-                MaterialLib::SolidModels::Invariants<kelvin_vector_size>;
             //
             // displacement equation, temperature part
             //
@@ -439,7 +457,7 @@ public:
                 KTT.noalias() += dNdx.transpose() * (d_ip*d_ip + k) *
                         lambda * dNdx * w;
                 KTd.noalias() += dNdx.transpose() * 2 * d_ip * lambda * T_ip * dNdx * w;
-                KdT.noalias() += N.transpose() * 2 * d_ip * scalar * alpha * alpha * delta_T * N * w;
+                KdT.noalias() += N.transpose() * 2 * d_ip * scalar * alpha * alpha * T_ip * N * w;
             }
             else
             {
@@ -457,6 +475,101 @@ public:
                 N.transpose() * d_ip * 2 * strain_energy_tensile -
                 N.transpose() * 0.5 * gc / ls * (1 - d_ip)) *
                w;
+            local_rhs.template block<phasefield_size, 1>(phasefield_index, 0)
+               .noalias() -=
+               N.transpose() * 0.5 * alpha * T0 * scalar * alpha * T0 * w;
+
+            double const T_dot_ip = N.dot(T_dot);
+
+            local_rhs.template block<temperature_size, 1>(temperature_index, 0)
+               .noalias() -= KTT * T +
+               N.transpose() * rho_sr * c * T_dot_ip * w;
+
+            // calculate numerical Jac
+            /*double num_p = 1e-8;
+            Eigen::VectorXd num_vec = Eigen::VectorXd::Zero(local_matrix_size);
+            std::vector<double> local_perturbed = local_x;
+            for (Eigen::MatrixXd::Index i = 0; i < local_matrix_size; i++)
+            {
+                num_vec[i] = num_p;
+                local_perturbed[i] += num_vec[i];
+                auto T_p = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    temperature_size> const>(local_x.data() + temperature_index,
+                                            temperature_size);
+                auto d_p = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    phasefield_size> const>(local_perturbed.data() + phasefield_index,
+                                            phasefield_size);
+                auto u_p = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    displacement_size> const>(local_perturbed.data() + displacement_index,
+                                              displacement_size);
+                double const d_ip_p = N.dot(d_p);
+                double const T_ip_p = N.dot(T_p);
+                _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u_p, alpha, delta_T);
+                local_b_p
+                    .template block<displacement_size, 1>(displacement_index, 0)
+                    .noalias() =
+                    (B.transpose() * ((d_ip_p*d_ip_p + k) * sigma_tensile + sigma_compressive)
+                                      - N_u.transpose() * rho_sr * b) * w;
+                local_b_p
+                    .template block<displacement_size, 1>(displacement_index, 0)
+                    .noalias() =
+                    B.transpose() * C * alpha * T0 * Invariants::identity2 * w;
+                local_b_p
+                   .template block<phasefield_size, 1>(phasefield_index, 0)
+                   .noalias() =
+                   (N.transpose() * d_ip_p / dt / M +
+                    Kdd_1 * d_p +
+                    N.transpose() * d_ip_p * 2 * strain_energy_tensile -
+                    N.transpose() * 0.5 * gc / ls * (1 - d_ip_p)) *
+                   w;
+                local_b_p.template block<phasefield_size, 1>(phasefield_index, 0)
+                   .noalias() =
+                   N.transpose() * 0.5 * alpha * T0 * scalar * alpha * T0 * w;
+                local_b_p
+                   .template block<temperature_size, 1>(temperature_index, 0)
+                   .noalias() = KTT * T_p + N.transpose() * rho_sr * c * T_ip_p / dt * w;
+
+                local_perturbed[i] = local_x[i] - num_vec[i];
+                auto T_m = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    temperature_size> const>(local_x.data() + temperature_index,
+                                            temperature_size);
+                auto d_m = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    phasefield_size> const>(local_perturbed.data() + phasefield_index,
+                                            phasefield_size);
+                auto u_m = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    displacement_size> const>(local_perturbed.data() + displacement_index,
+                                              displacement_size);
+                double const d_ip_m = N.dot(d_m);
+                double const T_ip_m = N.dot(T_m);
+                _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u_m, alpha, delta_T);
+                local_b_m
+                    .template block<displacement_size, 1>(displacement_index, 0)
+                    .noalias() =
+                    (B.transpose() * ((d_ip_m*d_ip_m + k) * sigma_tensile + sigma_compressive)
+                                      - N_u.transpose() * rho_sr * b) * w;
+                local_b_m
+                    .template block<displacement_size, 1>(displacement_index, 0)
+                    .noalias() =
+                    B.transpose() * C * alpha * T0 * Invariants::identity2 * w;
+                local_b_m
+                   .template block<phasefield_size, 1>(phasefield_index, 0)
+                   .noalias() =
+                   (N.transpose() * d_ip_m / dt / M +
+                    Kdd_1 * d_m +
+                    N.transpose() * d_ip_m * 2 * strain_energy_tensile -
+                    N.transpose() * 0.5 * gc / ls * (1 - d_ip_m)) *
+                   w;
+                local_b_m.template block<phasefield_size, 1>(phasefield_index, 0)
+                   .noalias() =
+                   N.transpose() * 0.5 * alpha * T0 * scalar * alpha * T0 * w;
+                local_b_m
+                   .template block<temperature_size, 1>(temperature_index, 0)
+                   .noalias() = KTT * T_m + N.transpose() * rho_sr * c * T_ip_m / dt * w;
+                local_perturbed[i] = local_x[i];
+                local_Jac_numerical.col(i).noalias() += (local_b_p - local_b_m) / (2.0 * num_vec[i]);
+
+            }*/
+
             // local_rhs.template block<phasefield_size, 1>(phasefield_index, 0)
             //    .noalias() -= N.transpose() * d_ip *
             //         alpha * T0 * scalar * alpha * T0;
@@ -469,13 +582,13 @@ public:
             //     w;
 
             // Additional penalty term if inside the damaged region
-            if (damaged_region)
-            {
-                Kdd.template block<phasefield_size, phasefield_size>(phasefield_index, 0)
-                    .noalias() += N.transpose() / gamma * N * w;
-                local_rhs
-                    .template block<phasefield_size, 1>(phasefield_index, 0)
-                    .noalias() -= N.transpose() * d_ip / gamma * w;
+            // if (damaged_region)
+            // {
+            //     Kdd.template block<phasefield_size, phasefield_size>(phasefield_index, 0)
+            //         .noalias() += N.transpose() / gamma * N * w;
+            //     local_rhs
+            //         .template block<phasefield_size, 1>(phasefield_index, 0)
+            //         .noalias() -= N.transpose() * d_ip / gamma * w;
                 // damping
                 // local_rhs
                 //     .template block<displacement_size, 1>(displacement_index, 0)
@@ -485,15 +598,12 @@ public:
                 //     .template block<phasefield_size, 1>(phasefield_index, 0)
                 //     .noalias() = 0.5 * local_rhs
                 //         .template block<phasefield_size, 1>(phasefield_index, 0);
-            }
+            // }
 
             // phasefield equation, displacement part.
             //
             // Reusing Kud.transpose().
         }
-        local_rhs.template block<temperature_size, 1>(temperature_index, 0)
-           .noalias() -= KTT * T + DTT * T_dot;
-
         // temperature equation, temperature part
         local_Jac
             .template block<temperature_size, temperature_size>(
@@ -541,6 +651,28 @@ public:
                                                               temperature_index)
             .noalias() -= KTT + DTT / dt;
 
+        // compare analytical Jac to numerical Jac
+        /*for (Eigen::MatrixXd::Index i = 0; i < local_matrix_size; i++)
+        {
+            for (Eigen::MatrixXd::Index j = 0; j < local_matrix_size; j++)
+            {
+                double Jac_analytical = local_Jac(i,j);
+                double Jac_numerical = local_Jac_numerical(i,j);
+                if (Jac_analytical != 0 && Jac_numerical != 0)
+                {
+                    double relative_deviation =
+                            std::abs(Jac_numerical - Jac_analytical) / Jac_analytical;
+                    if (relative_deviation > 1e-4)
+                    {
+                        OGS_FATAL("Deviation larger than the tolerance.");
+                    }
+                }
+                else if (Jac_analytical = 0 && Jac_numerical > 1e-2)
+                {
+                    OGS_FATAL("Numerical Jacobian element does not equal zero.");
+                }
+            }
+        }*/
         // Eigen::EigenSolver<JacobianMatrix> eigensolver(local_Jac);
         // std::cout << "eigenvalues" << eigensolver.eigenvalues() << "\n";
 

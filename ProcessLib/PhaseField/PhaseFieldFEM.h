@@ -265,6 +265,19 @@ public:
         auto local_Jac = MathLib::createZeroedMatrix<JacobianMatrix>(
             local_Jac_data, local_matrix_size, local_matrix_size);
 
+        Eigen::MatrixXd local_Jac_numerical = Eigen::MatrixXd::Zero(
+            local_matrix_size, local_matrix_size);
+
+        // auto local_K = MathLib::createZeroedMatrix<JacobianMatrix>(
+        //     local_K_data, local_matrix_size, local_matrix_size);
+
+        // auto local_M = MathLib::createZeroedMatrix<JacobianMatrix>(
+        //     local_M_data, local_matrix_size, local_matrix_size);
+
+        Eigen::MatrixXd local_b_p = Eigen::VectorXd::Zero(local_matrix_size);
+
+        Eigen::MatrixXd local_b_m = Eigen::VectorXd::Zero(local_matrix_size);
+
         auto local_rhs = MathLib::createZeroedVector<RhsVector>(
             local_rhs_data, local_matrix_size);
 
@@ -385,6 +398,106 @@ public:
 
             Ddd.noalias() += N.transpose() / M * N * w;
 
+            /*
+            local_M
+                .template block<phasefield_size, phasefield_size>(
+                    phasefield_index, phasefield_index)
+                .noalias() += Ddd;
+
+            local_K
+                .template block<displacement_size, displacement_size>(
+                    displacement_index, displacement_index)
+                .noalias() += B.transpose() * (d_ip*d_ip + k) * C * B * w;
+
+            local_K
+                .template block<phasefield_size, phasefield_size>(
+                        phasefield_size, phasefield_size)
+                .noalias() += Kdd;
+
+            local_b
+                .template block<displacement_size, 1>(displacement_index, 0)
+                .noalias() += N_u.transpose() * rho_sr * b * w;
+
+            local_b.template block<phasefield_size, 1>(phasefield_index, 0)
+               .noalias() += N.transpose() * 0.5 * gc / ls * w;
+            */
+
+            /*
+            // displacement equation, phasefield part
+            local_Jac
+                .template block<displacement_size, phasefield_size>(
+                    displacement_index, phasefield_index)
+                .noalias() += Kud;
+
+            // phasefield equation, phasefield part.
+            local_Jac
+                .template block<phasefield_size, phasefield_size>(phasefield_index,
+                                                                  phasefield_index)
+                .noalias() += Kdd + Ddd / dt;
+
+            // phasefield equation, displacement part.
+            local_Jac
+                .template block<phasefield_size, displacement_size>(
+                    phasefield_index, displacement_index)
+                .noalias() += Kdu;
+            */
+
+            // calculate numerical Jac
+            /*double num_p = 1e-8;
+            Eigen::VectorXd num_vec = Eigen::VectorXd::Zero(local_matrix_size);
+            std::vector<double> local_perturbed = local_x;
+            for (Eigen::MatrixXd::Index i = 0; i < local_matrix_size; i++)
+            {
+                num_vec[i] = num_p;
+                local_perturbed[i] += num_vec[i];
+                auto d_p = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    phasefield_size> const>(local_perturbed.data() + phasefield_index,
+                                            phasefield_size);
+                auto u_p = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    displacement_size> const>(local_perturbed.data() + displacement_index,
+                                              displacement_size);
+                double const d_ip_p = N.dot(d_p);
+                _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u_p);
+                local_b_p
+                    .template block<displacement_size, 1>(displacement_index, 0)
+                    .noalias() =
+                    (B.transpose() * ((d_ip_p*d_ip_p + k) * sigma_tensile + sigma_compressive)
+                                      - N_u.transpose() * rho_sr * b) * w;
+                local_b_p
+                   .template block<phasefield_size, 1>(phasefield_index, 0)
+                   .noalias() =
+                   (N.transpose() * d_ip_p / dt / M +
+                    Kdd_1 * d_p +
+                    N.transpose() * d_ip_p * 2 * history_variable -
+                    N.transpose() * 0.5 * gc / ls * (1 - d_ip_p)) *
+                   w;
+                local_perturbed[i] = local_x[i] - num_vec[i];
+                auto d_m = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    phasefield_size> const>(local_perturbed.data() + phasefield_index,
+                                            phasefield_size);
+                auto u_m = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    displacement_size> const>(local_perturbed.data() + displacement_index,
+                                              displacement_size);
+                double const d_ip_m = N.dot(d_m);
+                _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u_m);
+                local_b_m
+                    .template block<displacement_size, 1>(displacement_index, 0)
+                    .noalias() =
+                    (B.transpose() * ((d_ip_m*d_ip_m + k) * sigma_tensile + sigma_compressive)
+                                      - N_u.transpose() * rho_sr * b) * w;
+                local_b_m
+                   .template block<phasefield_size, 1>(phasefield_index, 0)
+                   .noalias() =
+                   (N.transpose() * d_ip_m / dt / M +
+                    Kdd_1 * d_m +
+                    N.transpose() * d_ip_m * 2 * history_variable -
+                    N.transpose() * 0.5 * gc / ls * (1 - d_ip_m)) *
+                   w;
+                local_perturbed[i] = local_x[i];
+                local_Jac_numerical.col(i).noalias() += (local_b_p - local_b_m) / (2.0 * num_vec[i]);
+
+            }*/
+
             // local_rhs.template block<phasefield_size, 1>(phasefield_index, 0)
             //     .noalias() -=
             //     (Kdd_1 * d +
@@ -393,13 +506,13 @@ public:
             //     w;
 
             // Additional penalty term if inside the damaged region
-            if (damaged_region)
-            {
-                Kdd.template block<phasefield_size, phasefield_size>(phasefield_index, 0)
-                    .noalias() += N.transpose() / gamma * N * w;
-                local_rhs
-                    .template block<phasefield_size, 1>(phasefield_index, 0)
-                    .noalias() -= N.transpose() * d_ip / gamma * w;
+            //if (damaged_region)
+            //{
+            //    Kdd.template block<phasefield_size, phasefield_size>(phasefield_index, 0)
+            //        .noalias() += N.transpose() / gamma * N * w;
+            //    local_rhs
+            //        .template block<phasefield_size, 1>(phasefield_index, 0)
+            //        .noalias() -= N.transpose() * d_ip / gamma * w;
                 // damping
                 // local_rhs
                 //     .template block<displacement_size, 1>(displacement_index, 0)
@@ -409,11 +522,12 @@ public:
                 //     .template block<phasefield_size, 1>(phasefield_index, 0)
                 //     .noalias() = 0.5 * local_rhs
                 //         .template block<phasefield_size, 1>(phasefield_index, 0);
-            }
+            //}
 
             // phasefield equation, displacement part.
             //
             // Reusing Kud.transpose().
+
         }
         // displacement equation, phasefield part
         local_Jac
@@ -433,10 +547,200 @@ public:
                 phasefield_index, displacement_index)
             .noalias() += Kdu;
 
+        // compare analytical Jac to numerical Jac
+        /*for (Eigen::MatrixXd::Index i = 0; i < local_matrix_size; i++)
+        {
+            for (Eigen::MatrixXd::Index j = 0; j < local_matrix_size; j++)
+            {
+                double Jac_analytical = local_Jac(i,j);
+                double Jac_numerical = local_Jac_numerical(i,j);
+                if (Jac_analytical != 0 && Jac_numerical != 0)
+                {
+                    double relative_deviation =
+                            std::abs((Jac_numerical - Jac_analytical) / Jac_analytical);
+                    if (relative_deviation > 1e-4)
+                    {
+                        std::cout << "row: " << i << std::endl;
+                        std::cout << "column: " << j << std::endl;
+                        std::cout << "relative_deviation: " << relative_deviation << std::endl;
+                        OGS_FATAL("Deviation larger than the tolerance.");
+                    }
+                }
+                else if (Jac_analytical = 0 && Jac_numerical > 1e-2)
+                {
+                    OGS_FATAL("Numerical Jacobian element does not equal zero.");
+                }
+            }
+        }*/
+
         // Eigen::EigenSolver<JacobianMatrix> eigensolver(local_Jac);
         // std::cout << "eigenvalues" << eigensolver.eigenvalues() << "\n";
 
     }
+
+    /*
+    void assembleWithJacobian_numerical(const double t,
+                                        const std::vector<double>& local_x_data,
+                                        const std::vector<double>& local_xdot_data, const double dxdot_dx,
+                                        const double dx_dx, std::vector<double>& local_M_data,
+                                        std::vector<double>& local_K_data, std::vector<double>& local_b_data,
+                                        std::vector<double>& local_Jac_data)
+    {
+        auto const local_matrix_size = local_x.size();
+        assert(local_matrix_size == phasefield_size + displacement_size);
+        Eigen::MatrixXd TMP_M_1 = Eigen::MatrixXd::Zero(local_matrix_size, local_matrix_size);
+        Eigen::MatrixXd TMP_M_2 = Eigen::MatrixXd::Zero(local_matrix_size, local_matrix_size);
+
+        std::vector<double> _local_x(local_matrix_size);
+        _local_x = local_x;
+        double const eps = 1e-7;
+        for (unsigned id = 0; id < local_matrix_size; id++)
+        {
+            Eigen::VectorXd local_r_1 = Eigen::VectorXd::Zero(local_matrix_size);
+            Eigen::VectorXd local_r_2 = Eigen::VectorXd::Zero(local_matrix_size);
+            std::vector<double> e_vec(local_matrix_size);
+            Eigen::VectorXd e_vec_ = Eigen::VectorXd::Zero(local_matrix_size);
+            Eigen::Map<const Eigen::VectorXd> local_x_(local_x.data(), local_x.size());
+            Eigen::Map<const Eigen::VectorXd> local_x0_(local_x0.data(), local_x0.size());
+            e_vec[id] = eps*(1 + std::abs(local_x[id]));
+            e_vec_[id] = eps*(1 + std::abs(local_x[id]));
+
+            for (unsigned idx = 0; idx < local_matrix_size; idx++)
+                        _local_x[idx] = local_x[idx] - e_vec[idx];
+            assembleWithJacobian(t,
+                                 _local_x,
+                                 local_xdot_data,
+                                 local_M_data,
+                                 local_K_data,
+                                 local_b_data,
+                                 local_rhs_data,
+                                 local_Jac_data);
+            TMP_M_1 = local_Jac;
+            local_r_1 = TMP_M_1*(local_x_ - e_vec_);
+            TMP_M_1 = local_M;
+            local_r_1.noalias() -= TMP_M_1 * local_x0_;
+            local_r_1.noalias() -= local_rhs;
+            for (unsigned idx = 0; idx < local_matrix_size; idx++)
+                        _local_x[idx] = local_x[idx] - e_vec[idx];
+            assembleWithJacobian(t,
+                                 _local_x,
+                                 _local_xdot_data,
+                                 _local_M_data,
+                                 _local_K_data,
+                                 _local_b_data,
+                                 _local_rhs_data,
+                                 _local_Jac_data);
+            TMP_M_2 = local_Jac;
+            local_r_2 = TMP_M_1*(local_x_ - e_vec_);
+            TMP_M_2 = local_M;
+            local_r_2.noalias() -= TMP_M_2 * local_x0_;
+            local_r_2.noalias() -= local_rhs;
+        }
+        auto const num_r_c =
+            static_cast<Eigen::MatrixXd::Index>(local_x_data.size());
+
+        auto const local_x =
+            MathLib::toVector<Eigen::VectorXd>(local_x_data, num_r_c);
+        auto const local_xdot =
+            MathLib::toVector<Eigen::VectorXd>(local_xdot_data, num_r_c);
+
+        auto local_Jac_numerical = MathLib::createZeroedMatrix(local_Jac_data,
+                                                 num_r_c, num_r_c);
+        _local_x_perturbed_data = local_x_data;
+        _local_xdot_data = local_xdot_data;
+
+        // auto const num_dofs_per_component =
+        //     local_x_data.size() / _absolute_epsilons.size();
+
+        // Residual  res := M xdot + K x - b
+        // Computing Jac := dres/dx
+        //                = M dxdot/dx + dM/dx xdot + K dx/dx + dK/dx x - db/dx
+        //                  (Note: dM/dx and dK/dx actually have the second and
+        //                  third index transposed.)
+        // The loop computes the dM/dx, dK/dx and db/dx terms, the rest is computed
+        // afterwards.
+        for (Eigen::MatrixXd::Index i = 0; i < num_r_c; ++i)
+        {
+            // assume that local_x_data is ordered by component.
+            // auto const component = i / num_dofs_per_component;
+            // auto const eps = _absolute_epsilons[component];
+            double const eps = 1e-7;
+
+            _local_x_perturbed_data[i] += eps;
+            assembleWithJacobian(t,
+                                 _local_x_perturbed_data,
+                                 local_xdot_data,
+                                 local_M_data,
+                                 local_K_data,
+                                 local_b_data,
+                                 local_Jac_data);
+
+            _local_x_perturbed_data[i] = local_x_data[i] - eps;
+            assembleWithJacobian(t,
+                                 _local_x_perturbed_data,
+                                 _local_xdot_data,
+                                 _local_M_data,
+                                 _local_K_data,
+                                 _local_b_data,
+                                 _local_Jac_data);
+
+            _local_x_perturbed_data[i] = local_x_data[i];
+
+            if (!local_M_data.empty()) {
+                auto const local_M_p =
+                    MathLib::toMatrix(local_M_data, num_r_c, num_r_c);
+                auto const local_M_m =
+                    MathLib::toMatrix(_local_M_data, num_r_c, num_r_c);
+                local_Jac_numerical.col(i).noalias() +=
+                    // dM/dxi * x_dot
+                    (local_M_p - local_M_m) * local_xdot / (2.0 * eps);
+                local_M_data.clear();
+                _local_M_data.clear();
+            }
+            if (!local_K_data.empty()) {
+                auto const local_K_p =
+                    MathLib::toMatrix(local_K_data, num_r_c, num_r_c);
+                auto const local_K_m =
+                    MathLib::toMatrix(_local_K_data, num_r_c, num_r_c);
+                local_Jac_numerical.col(i).noalias() +=
+                    // dK/dxi * x
+                    (local_K_p - local_K_m) * local_x / (2.0 * eps);
+                local_K_data.clear();
+                _local_K_data.clear();
+            }
+            if (!local_b.empty()) {
+                auto const local_b_p =
+                    MathLib::toVector<Eigen::VectorXd>(local_b_data, num_r_c);
+                auto const local_b_m =
+                    MathLib::toVector<Eigen::VectorXd>(_local_b_data, num_r_c);
+                local_Jac_numerical.col(i).noalias() -=
+                    // db/dxi
+                    (local_b_p - local_b_m) / (2.0 * eps);
+                local_b_data.clear();
+                _local_b_data.clear();
+            }
+        }
+
+        // Assemble with unperturbed local x.
+        assembleWithJacobian(t,
+                             local_x_data,
+                             local_xdot_data,
+                             local_M_data,
+                             local_K_data,
+                             local_b_data,
+                             local_Jac_data);
+
+        // Compute remaining terms of the Jacobian.
+        if (dxdot_dx != 0.0 && !local_M_data.empty()) {
+            auto local_M = MathLib::toMatrix(local_M_data, num_r_c, num_r_c);
+            local_Jac_numerical.noalias() += local_M * dxdot_dx;
+        }
+        if (dx_dx != 0.0 && !local_K_data.empty()) {
+            auto local_K = MathLib::toMatrix(local_K_data, num_r_c, num_r_c);
+            local_Jac_numerical.noalias() += local_K * dx_dx;
+        }
+    }
+    */
 
     void preTimestepConcrete(std::vector<double> const& local_x,
                              double const /*t*/,
@@ -507,6 +811,13 @@ public:
     }
 
 private:
+    // std::vector<double> _local_M_data;
+    // std::vector<double> _local_K_data;
+    // std::vector<double> _local_b_data;
+    // std::vector<double> _local_Jac_data;
+    // std::vector<double> _local_xdot_data;
+    // std::vector<double> _local_x_perturbed_data;
+
     std::vector<double> const& getIntPtSigma(std::vector<double>& cache,
                                              std::size_t const component) const
     {
