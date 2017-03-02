@@ -191,7 +191,17 @@ bool NonlinearSolver<NonlinearSolverTag::Newton>::solve(
     // init _minus_delta_x to the right size and 0.0
     LinAlg::copy(x, minus_delta_x);
     minus_delta_x.setZero();
-
+    BaseLib::RunTime time_assembly;
+    time_assembly.start();
+    sys.assemble(x);
+    sys.getResidual(x, res);
+    sys.getJacobian(J);
+    INFO("[time] Assembly took %g s.", time_assembly.elapsed());
+    BaseLib::RunTime time_dirichlet;
+    time_dirichlet.start();
+    sys.applyKnownSolutionsNewton(J, res, minus_delta_x);
+    INFO("[time] Applying Dirichlet BCs took %g s.", time_dirichlet.elapsed());
+    d_norm = MathLib::LinAlg::norm(res, MathLib::VecNormType::NORM2);
     _convergence_criterion->preFirstIteration();
 
     unsigned iteration = 1;
@@ -210,15 +220,15 @@ bool NonlinearSolver<NonlinearSolverTag::Newton>::solve(
         sys.getJacobian(J);
         INFO("[time] Assembly took %g s.", time_assembly.elapsed());
 
-        d_norm = MathLib::LinAlg::norm(res, MathLib::VecNormType::NORM2);
-
         BaseLib::RunTime time_dirichlet;
         time_dirichlet.start();
         sys.applyKnownSolutionsNewton(J, res, minus_delta_x);
         INFO("[time] Applying Dirichlet BCs took %g s.", time_dirichlet.elapsed());
+        d_norm = MathLib::LinAlg::norm(res, MathLib::VecNormType::NORM2);
+        _convergence_criterion->preFirstIteration();
 
-        if (!sys.isLinear() && _convergence_criterion->hasResidualCheck())
-            _convergence_criterion->checkResidual(res);
+        // if (!sys.isLinear() && _convergence_criterion->hasResidualCheck())
+        //     _convergence_criterion->checkResidual(res);
 
         BaseLib::RunTime time_linear_solver;
         time_linear_solver.start();
@@ -239,8 +249,54 @@ bool NonlinearSolver<NonlinearSolverTag::Newton>::solve(
                     x, _x_new_id);
             LinAlg::axpy(x_new, -_alpha, minus_delta_x);
 
+            sys.assemble(x_new);
+            sys.getResidual(x_new, res);
+            sys.getJacobian(J);
+            sys.applyKnownSolutionsNewton(J, res, minus_delta_x);
+            d1_norm = MathLib::LinAlg::norm(res, MathLib::VecNormType::NORM2);
+
             if (postIterationCallback)
                 postIterationCallback(iteration, x_new);
+
+            auto x_storage = x_new;
+            double damping_factor = 0.01;
+            double beta_storage;
+            _beta = 1.0;
+            // if (d1_norm < 0.1 * d_norm || iteration <= 1)
+            if (d1_norm < d_norm)
+            {
+                d_norm = d1_norm;
+                x_new = x_storage;
+            }
+            else
+            {
+                INFO("Global line search begins!");
+                INFO("Line search Convergence criterion: |r|=%.4e:", d1_norm);
+                for (unsigned i = 0; i < 20; i++)
+                {
+                    // auto& x_new =
+                    //     NumLib::GlobalVectorProvider::provider.getVector(
+                    //         x, _x_new_id);
+                    _beta -= (1 - damping_factor) / 20;
+                    LinAlg::axpy(x_new, _beta, minus_delta_x);
+                    sys.preIteration(iteration, x);
+                    sys.assemble(x_new);
+                    sys.getResidual(x_new, res);
+                    sys.getJacobian(J);
+                    sys.applyKnownSolutionsNewton(J, res, minus_delta_x);
+                    d2_norm = MathLib::LinAlg::norm(res, MathLib::VecNormType::NORM2);
+                    if (d1_norm > d2_norm)
+                    {
+                        d1_norm = d2_norm;
+                        x_storage = x_new;
+                        beta_storage = _beta;
+                        INFO("Damping factor location %g:", beta_storage);
+                        // std::cout << "damping factor location:" << beta_storage << std::endl;
+                    }
+                }
+                d_norm = d1_norm;
+                x_new = x_storage;
+            }
 
             switch(sys.postIteration(x_new))
             {
@@ -261,49 +317,7 @@ bool NonlinearSolver<NonlinearSolverTag::Newton>::solve(
                         .releaseVector(x_new);
                     continue;  // That throws the iteration result away.
             }
-            sys.assemble(x_new);
-            sys.getResidual(x_new, res);
-            sys.getJacobian(J);
-            sys.applyKnownSolutionsNewton(J, res, minus_delta_x);
-            auto x_storage = x_new;
-            double damping_factor = 0.01;
-            double beta_storage;
-            _beta = 1.0;
-            d1_norm = MathLib::LinAlg::norm(res, MathLib::VecNormType::NORM2);
-            // if (d1_norm < 0.1 * d_norm || iteration <= 1)
-            if (d1_norm < d_norm)
-            {
-                d_norm = d1_norm;
-                x_new = x_storage;
-            }
-            else
-            {
-                INFO("Global line search begins!");
-                INFO("Line search Convergence criterion: |r|=%.4e:", d1_norm);
-                for (unsigned i = 0; i < 20; i++)
-                {
-                    // auto& x_new =
-                    //     NumLib::GlobalVectorProvider::provider.getVector(
-                    //         x, _x_new_id);
-                    _beta -= (1 - damping_factor) / 20;
-                    LinAlg::axpy(x_new, _beta, minus_delta_x);
-                    sys.assemble(x_new);
-                    sys.getResidual(x_new, res);
-                    sys.getJacobian(J);
-                    sys.applyKnownSolutionsNewton(J, res, minus_delta_x);
-                    d2_norm = MathLib::LinAlg::norm(res, MathLib::VecNormType::NORM2);
-                    if (d1_norm > d2_norm)
-                    {
-                        d1_norm = d2_norm;
-                        x_storage = x_new;
-                        beta_storage = _beta;
-                        INFO("Damping factor location: %.4e:", beta_storage);
-                        // std::cout << "damping factor location:" << beta_storage << std::endl;
-                    }
-                }
-                d_norm = d1_norm;
-                x_new = x_storage;
-            }
+
             // TODO could be done via swap. Note: that also requires swapping
             // the ids. Same for the Picard scheme.
             LinAlg::copy(x_new, x);  // copy new solution to x
