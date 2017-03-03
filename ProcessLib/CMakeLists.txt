@@ -27,6 +27,9 @@ APPEND_SOURCE_FILES(SOURCES TwoPhaseFlowWithPrho)
 add_subdirectory(SmallDeformation)
 APPEND_SOURCE_FILES(SOURCES SmallDeformation)
 
+add_subdirectory(TMPhaseField)
+APPEND_SOURCE_FILES(SOURCES TMPhaseField)
+
 add_subdirectory(LIE/SmallDeformation)
 add_subdirectory(LIE/HydroMechanics)
 APPEND_SOURCE_FILES(SOURCES LIE/BoundaryCondition)
@@ -50,6 +53,9 @@ APPEND_SOURCE_FILES(SOURCES HT)
 
 add_subdirectory(CalculateSurfaceFlux)
 APPEND_SOURCE_FILES(SOURCES CalculateSurfaceFlux)
+
+add_subdirectory(PhaseField)
+APPEND_SOURCE_FILES(SOURCES PhaseField)
 
 APPEND_SOURCE_FILES(SOURCES Utils)
 
