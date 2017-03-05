@@ -136,6 +136,7 @@ private:
 
     double const _alpha =
         1;  //!< Damping factor. \todo Add constructor parameter.
+    double _beta = 1;
 
     std::size_t _res_id = 0u;            //!< ID of the residual vector.
     std::size_t _J_id = 0u;              //!< ID of the Jacobian matrix.
