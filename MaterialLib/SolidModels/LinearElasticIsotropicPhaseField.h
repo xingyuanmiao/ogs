@@ -12,6 +12,7 @@
 #include "PhaseFieldExtension.h"
 #include "LinearElasticIsotropic.h"
 #include "KelvinVector.h"
+#include <iostream>
 
 namespace MaterialLib
 {
@@ -79,11 +80,11 @@ public:
             MaterialLib::SolidModels::Invariants<KelvinVectorSize>;
         // calculation of deviatoric parts
         auto const& P_dev = Invariants::deviatoric_projection;
-        KelvinVector const epsd_i = P_dev * (eps - eps_prev);
+        // KelvinVector const epsd_i = P_dev * (eps - eps_prev);
         KelvinVector const epsd_curr = P_dev * eps;
 
         // Hydrostatic part for the stress and the tangent.
-        double const eps_i_trace = Invariants::trace(eps - eps_prev);
+        // double const eps_i_trace = Invariants::trace(eps - eps_prev);
         double const eps_curr_trace = Invariants::trace(eps);
 
         auto const& K =
@@ -91,7 +92,7 @@ public:
         auto const& mu =
             LinearElasticIsotropic<DisplacementDim>::_mp.mu(t, x);
 
-        strain_energy_tensile =
+        /*strain_energy_tensile =
                 K / 8 * (eps_curr_trace + std::abs(eps_curr_trace)) *
                                 (eps_curr_trace + std::abs(eps_curr_trace)) +
                                 mu * epsd_curr.transpose() * epsd_curr;
@@ -102,7 +103,30 @@ public:
 
         sigma_compressive.noalias() =
                 (K / 2 * (eps_curr_trace - std::abs(eps_curr_trace)) *
-                                Invariants::identity2).eval();
+                                Invariants::identity2).eval();*/
+        if (eps_curr_trace >= 0)
+        {
+            strain_energy_tensile =
+                 K / 2 * eps_curr_trace * eps_curr_trace +
+                 mu * epsd_curr.transpose() * epsd_curr;
+            sigma_tensile.noalias() =
+                 (K * eps_curr_trace * Invariants::identity2 +
+                 2 * mu * epsd_curr).eval();
+            sigma_compressive.noalias() = KelvinVector::Zero();
+        }
+        else
+        {
+            strain_energy_tensile = mu * epsd_curr.transpose() * epsd_curr;
+            sigma_tensile.noalias() = (2 * mu * epsd_curr).eval();
+            sigma_compressive.noalias() =
+                 (K * eps_curr_trace * Invariants::identity2).eval();
+        }
+        // KelvinVector sigma = K * eps_curr_trace * Invariants::identity2 +
+        //                      2 * mu *epsd_curr;
+        // std::cout << "Tensile stress" << sigma_tensile << std::endl;
+        // std::cout << "Compressive stress" << sigma_compressive << std::endl;
+        // std::cout << "Stress" << sigma << std::endl;
+        // std::cout << "strain energy tensile" << strain_energy_tensile << std::endl;
         return true;
     }
 };
