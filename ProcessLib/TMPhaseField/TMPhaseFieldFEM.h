@@ -486,7 +486,7 @@ public:
                N.transpose() * rho_sr * c * T_dot_ip * w;
 
             // calculate numerical Jac
-            /*double num_p = 1e-8;
+            double num_p = 1e-8;
             Eigen::VectorXd num_vec = Eigen::VectorXd::Zero(local_matrix_size);
             std::vector<double> local_perturbed = local_x;
             for (Eigen::MatrixXd::Index i = 0; i < local_matrix_size; i++)
@@ -568,7 +568,7 @@ public:
                 local_perturbed[i] = local_x[i];
                 local_Jac_numerical.col(i).noalias() += (local_b_p - local_b_m) / (2.0 * num_vec[i]);
 
-            }*/
+            }
 
             // local_rhs.template block<phasefield_size, 1>(phasefield_index, 0)
             //    .noalias() -= N.transpose() * d_ip *
@@ -652,7 +652,7 @@ public:
             .noalias() -= KTT + DTT / dt;
 
         // compare analytical Jac to numerical Jac
-        /*for (Eigen::MatrixXd::Index i = 0; i < local_matrix_size; i++)
+        for (Eigen::MatrixXd::Index i = 0; i < local_matrix_size; i++)
         {
             for (Eigen::MatrixXd::Index j = 0; j < local_matrix_size; j++)
             {
@@ -672,7 +672,7 @@ public:
                     OGS_FATAL("Numerical Jacobian element does not equal zero.");
                 }
             }
-        }*/
+        }
         // Eigen::EigenSolver<JacobianMatrix> eigensolver(local_Jac);
         // std::cout << "eigenvalues" << eigensolver.eigenvalues() << "\n";
 

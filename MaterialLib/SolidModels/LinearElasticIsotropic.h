@@ -10,6 +10,7 @@
 #pragma once
 
 #include "MechanicsBase.h"
+#include <iostream>
 
 namespace MaterialLib
 {
@@ -102,6 +103,7 @@ public:
         C.noalias() += 2 * _mp.mu(t, x) * KelvinMatrix::Identity();
 
         sigma.noalias() = sigma_prev + C * (eps - eps_prev);
+        // std::cout << "Original stress" << sigma << std::endl;
         return true;
     }
 

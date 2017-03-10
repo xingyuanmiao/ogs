@@ -275,6 +275,7 @@ bool NonlinearSolver<NonlinearSolverTag::Newton>::solve(
                     auto& x_new =
                         NumLib::GlobalVectorProvider::provider.getVector(
                             x, _x_new_id);
+                    // LinAlg::copy(x, x_new);  // copy new solution to x
                     _beta -= (1 - damping_factor) / 10;
                     LinAlg::axpy(x_new, -_beta, minus_delta_x);
                     sys.preIteration(iteration, x);
@@ -289,7 +290,7 @@ bool NonlinearSolver<NonlinearSolverTag::Newton>::solve(
                         x_storage = x_new;
                         beta_storage = _beta;
                         INFO("Damping factor location %g:", beta_storage);
-                        // std::cout << "damping factor location:" << beta_storage << std::endl;
+                        INFO("Minimising residual |r|=%.4e:", d1_norm);
                     }
                 }
                 d_norm = d1_norm;

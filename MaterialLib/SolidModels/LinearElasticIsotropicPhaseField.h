@@ -123,6 +123,8 @@ public:
         }
         // KelvinVector sigma = K * eps_curr_trace * Invariants::identity2 +
         //                      2 * mu *epsd_curr;
+        // std::cout << "Volumetric strain" << eps_curr_trace << std::endl;
+        // std::cout << "Deviatoric strain" << epsd_curr << std::endl;
         // std::cout << "Tensile stress" << sigma_tensile << std::endl;
         // std::cout << "Compressive stress" << sigma_compressive << std::endl;
         // std::cout << "Stress" << sigma << std::endl;

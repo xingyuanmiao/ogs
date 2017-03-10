@@ -41,7 +41,8 @@ struct IntegrationPointData final
         MaterialLib::Solids::MechanicsBase<DisplacementDim>& solid_material)
         : _solid_material(solid_material),
           _material_state_variables(
-              _solid_material.createMaterialStateVariables())
+              _solid_material.createMaterialStateVariables()),
+          history_variable_prev(0)
     {
     }
 
@@ -83,7 +84,8 @@ struct IntegrationPointData final
 
     typename BMatricesType::KelvinMatrixType _C;
     double integration_weight;
-    double history_variable, history_variable_prev;
+    double history_variable;
+    double history_variable_prev;
 
     void pushBackState()
     {
@@ -375,24 +377,30 @@ public:
 
             double const d_dot_ip = N.dot(d_dot);
 
-            if (history_variable_prev < strain_energy_tensile)
+            if (history_variable_prev < strain_energy_tensile && history_variable < strain_energy_tensile)
             {
                 history_variable = strain_energy_tensile;
-                Kdu.noalias() = Kud.transpose();
+                // Kdu.noalias() = Kud.transpose();
             }
+            else
+            {
+                history_variable = history_variable_prev;
+            }
+            // INFO("History variable previous %g:", history_variable_prev);
+            // INFO("History variable %g:", history_variable);
 
             //
             // phasefield equation, phasefield part.
             //
             Kdd.noalias() += (Kdd_1 +
-                              N.transpose() * 2 * history_variable * N +
+                              N.transpose() * 2 * history_variable_prev * N +
                               N.transpose() * 0.5 * gc / ls * N) *
                              w;
             local_rhs.template segment<phasefield_size>(phasefield_index)
                .noalias() -=
                (N.transpose() * d_dot_ip / M +
                 Kdd_1 * d +
-                N.transpose() * d_ip * 2 * history_variable -
+                N.transpose() * d_ip * 2 * history_variable_prev -
                 N.transpose() * 0.5 * gc / ls * (1 - d_ip)) *
                w;
 
@@ -448,7 +456,7 @@ public:
             std::vector<double> local_perturbed = local_x;
             for (Eigen::MatrixXd::Index i = 0; i < local_matrix_size; i++)
             {
-                num_vec[i] = num_p;
+                num_vec[i] = num_p * (1 + std::abs(local_x[i]));
                 local_perturbed[i] += num_vec[i];
                 auto d_p = Eigen::Map<typename ShapeMatricesType::template VectorType<
                     phasefield_size> const>(local_perturbed.data() + phasefield_index,
@@ -468,7 +476,7 @@ public:
                    .noalias() =
                    (N.transpose() * d_ip_p / dt / M +
                     Kdd_1 * d_p +
-                    N.transpose() * d_ip_p * 2 * history_variable -
+                    N.transpose() * d_ip_p * 2 * history_variable_prev -
                     N.transpose() * 0.5 * gc / ls * (1 - d_ip_p)) *
                    w;
                 local_perturbed[i] = local_x[i] - num_vec[i];
@@ -490,7 +498,7 @@ public:
                    .noalias() =
                    (N.transpose() * d_ip_m / dt / M +
                     Kdd_1 * d_m +
-                    N.transpose() * d_ip_m * 2 * history_variable -
+                    N.transpose() * d_ip_m * 2 * history_variable_prev -
                     N.transpose() * 0.5 * gc / ls * (1 - d_ip_m)) *
                    w;
                 local_perturbed[i] = local_x[i];
