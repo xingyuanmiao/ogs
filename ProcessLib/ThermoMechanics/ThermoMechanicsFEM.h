@@ -325,7 +325,7 @@ public:
             double T_ip = N.dot(T);
             double delta_T = T_ip - T0;
             // calculate real density
-            rho_sr = rho_sr * (1 - 3 * alpha * delta_T);
+            auto rho_s = rho_sr * (1 - 3 * alpha * delta_T);
             // calculate thermally induced strain
 
             //
@@ -358,7 +358,7 @@ public:
                 .template block<displacement_size, 1>(displacement_index, 0)
                 .noalias() -=
                 (B.transpose() * (sigma + C * alpha * delta_T * Invariants::identity2)
-                 - N_u.transpose() * rho_sr * b) * w;
+                 - N_u.transpose() * rho_s * b) * w;
             local_rhs
                 .template block<displacement_size, 1>(displacement_index, 0)
                 .noalias() -=
@@ -375,7 +375,7 @@ public:
 
             KTT.noalias() += dNdx.transpose() * lambda * dNdx * w;
 
-            DTT.noalias() += N.transpose() * rho_sr * c * N * w;
+            DTT.noalias() += N.transpose() * rho_s * c * N * w;
 
         }
         // temperature equation, temperature part
