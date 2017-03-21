@@ -140,7 +140,7 @@ private:
         GlobalMatrix& K, GlobalVector& b, GlobalMatrix& Jac,
         StaggeredCouplingTerm const& coupling_term) override
     {
-        DBUG("AssembleJacobian PhaseFieldProcess.");
+        // DBUG("AssembleJacobian PhaseFieldProcess.");
 
         // Call global assembler for each local assembly item.
         GlobalExecutor::executeMemberDereferenced(

@@ -42,7 +42,7 @@ struct IntegrationPointData final
         : _solid_material(solid_material),
           _material_state_variables(
               _solid_material.createMaterialStateVariables()),
-          history_variable_prev(0)
+          history_variable(0), history_variable_prev(0)
     {
     }
 
@@ -89,7 +89,7 @@ struct IntegrationPointData final
 
     void pushBackState()
     {
-        history_variable_prev = history_variable;
+        // history_variable_prev = history_variable;
         _eps_prev = _eps;
         _sigma_prev = _sigma;
         _material_state_variables->pushBackState();
@@ -377,18 +377,13 @@ public:
 
             double const d_dot_ip = N.dot(d_dot);
 
-            if (history_variable_prev < strain_energy_tensile && history_variable < strain_energy_tensile)
+            if (history_variable < strain_energy_tensile)
             {
                 history_variable = strain_energy_tensile;
+                // INFO("History variable %g:", history_variable);
+                // INFO("History variable previous %g:", history_variable_prev);
                 // Kdu.noalias() = Kud.transpose();
             }
-            else
-            {
-                history_variable = history_variable_prev;
-            }
-            // INFO("History variable previous %g:", history_variable_prev);
-            // INFO("History variable %g:", history_variable);
-
             //
             // phasefield equation, phasefield part.
             //
@@ -591,6 +586,8 @@ public:
                              double const /*delta_t*/) override
     {
         // Update damaged region.
+        double history_variable;
+        double history_variable_prev;
         auto const d =
             Eigen::Map<typename ShapeMatricesType::template VectorType<
                 phasefield_size> const>(local_x.data() + phasefield_index,
@@ -604,8 +601,29 @@ public:
         for (unsigned ip = 0; ip < n_integration_points; ip++)
         {
             _ip_data[ip].pushBackState();
+            if (history_variable_prev < history_variable)
+            {
+                _ip_data[ip].history_variable_prev = _ip_data[ip].history_variable;
+            }
         }
     }
+
+    /*void postTimestepConcrete(std::vector<double> const& local_x) override
+    {
+        double history_variable;
+        double history_variable_prev;
+        unsigned const n_integration_points =
+            _integration_method.getNumberOfPoints();
+
+        for (unsigned ip = 0; ip < n_integration_points; ip++)
+        {
+            if (history_variable_prev < history_variable)
+            {
+                _ip_data[ip].history_variable_prev = _ip_data[ip].history_variable;
+            }
+        }
+
+    }*/
 
     Eigen::Map<const Eigen::RowVectorXd> getShapeMatrix(
         const unsigned integration_point) const override
