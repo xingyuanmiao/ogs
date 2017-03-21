@@ -278,6 +278,19 @@ public:
         auto local_Jac = MathLib::createZeroedMatrix<JacobianMatrix>(
             local_Jac_data, local_matrix_size, local_matrix_size);
 
+        Eigen::MatrixXd local_Jac_numerical = Eigen::MatrixXd::Zero(
+            local_matrix_size, local_matrix_size);
+
+        // auto local_K = MathLib::createZeroedMatrix<JacobianMatrix>(
+        //     local_K_data, local_matrix_size, local_matrix_size);
+
+        // auto local_M = MathLib::createZeroedMatrix<JacobianMatrix>(
+        //     local_M_data, local_matrix_size, local_matrix_size);
+
+        Eigen::MatrixXd local_b_p = Eigen::VectorXd::Zero(local_matrix_size);
+
+        Eigen::MatrixXd local_b_m = Eigen::VectorXd::Zero(local_matrix_size);
+
         auto local_rhs = MathLib::createZeroedVector<RhsVector>(
             local_rhs_data, local_matrix_size);
 
@@ -325,7 +338,7 @@ public:
             double T_ip = N.dot(T);
             double delta_T = T_ip - T0;
             // calculate real density
-            rho_sr = rho_sr * (1 - 3 * alpha * delta_T);
+            double rho_s = rho_sr * (1 - 3 * alpha * delta_T);
             // calculate thermally induced strain
 
             //
@@ -333,11 +346,11 @@ public:
             //
             _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u, alpha, delta_T);
 
-            local_Jac
+            /*local_Jac
                 .template block<displacement_size, displacement_size>(
                     displacement_index, displacement_index)
                 .noalias() +=
-                B.transpose() * C * B * w;
+                B.transpose() * C * B * w;*/
 
             typename ShapeMatricesType::template MatrixType<DisplacementDim,
                                                             displacement_size>
@@ -358,7 +371,7 @@ public:
                 .template block<displacement_size, 1>(displacement_index, 0)
                 .noalias() -=
                 (B.transpose() * (sigma + C * alpha * delta_T * Invariants::identity2)
-                 - N_u.transpose() * rho_sr * b) * w;
+                 - N_u.transpose() * rho_s * b) * w;
             local_rhs
                 .template block<displacement_size, 1>(displacement_index, 0)
                 .noalias() -=
@@ -375,10 +388,69 @@ public:
 
             KTT.noalias() += dNdx.transpose() * lambda * dNdx * w;
 
-            DTT.noalias() += N.transpose() * rho_sr * c * N * w;
+            DTT.noalias() += N.transpose() * rho_s * c * N * w;
+
+            // calculate numerical Jac
+            double num_p = 1e-7;
+            Eigen::VectorXd num_vec = Eigen::VectorXd::Zero(local_matrix_size);
+            std::vector<double> local_perturbed = local_x;
+            for (Eigen::MatrixXd::Index i = 0; i < local_matrix_size; i++)
+            {
+                num_vec[i] = num_p * (1 + std::abs(local_x[i]));
+                // num_vec[i] = num_p;
+                local_perturbed[i] += num_vec[i];
+                auto T_p = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    temperature_size> const>(local_perturbed.data() + temperature_index,
+                                            temperature_size);
+                auto u_p = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    displacement_size> const>(local_perturbed.data() + displacement_index,
+                                              displacement_size);
+                double const T_ip_p = N.dot(T_p);
+                double delta_T_p(T_ip_p - T0);
+                double rho_s_p = rho_sr * (1 - 3 * alpha * delta_T_p);
+                _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u_p, alpha, delta_T_p);
+                local_b_p
+                    .template block<displacement_size, 1>(displacement_index, 0)
+                    .noalias() =
+                    (B.transpose() * (sigma + C * alpha * delta_T_p * Invariants::identity2)
+                    - N_u.transpose() * rho_s_p * b) * w
+                    + B.transpose() * C * alpha * T0 * Invariants::identity2 * w
+                    - B.transpose() * C * alpha * Invariants::identity2 * N * T_p * w;
+                local_b_p
+                   .template block<temperature_size, 1>(temperature_index, 0)
+                   .noalias() =
+                    N.transpose() * rho_s_p * c * N * T_p / dt * w
+                    + dNdx.transpose() * lambda * dNdx * T_p *w;
+                local_perturbed[i] = local_x[i] - num_vec[i];
+                auto T_m = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    temperature_size> const>(local_perturbed.data() + temperature_index,
+                                            temperature_size);
+                auto u_m = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                    displacement_size> const>(local_perturbed.data() + displacement_index,
+                                              displacement_size);
+                double const T_ip_m = N.dot(T_m);
+                double delta_T_m(T_ip_m - T0);
+                double rho_s_m = rho_sr * (1 - 3 * alpha * delta_T_m);
+                _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u_m, alpha, delta_T_m);
+                local_b_m
+                    .template block<displacement_size, 1>(displacement_index, 0)
+                    .noalias() =
+                    (B.transpose() * (sigma + C * alpha * delta_T_m * Invariants::identity2)
+                    - N_u.transpose() * rho_s_m * b) * w
+                    + B.transpose() * C * alpha * T0 * Invariants::identity2 * w
+                    - B.transpose() * C * alpha * Invariants::identity2 * N * T_m * w;
+                local_b_m
+                   .template block<temperature_size, 1>(temperature_index, 0)
+                   .noalias() =
+                    N.transpose() * rho_s_m * c * N * T_m / dt * w
+                    + dNdx.transpose() * lambda * dNdx * T_m * w;
+                local_perturbed[i] = local_x[i];
+                local_Jac_numerical.col(i).noalias() += (local_b_p - local_b_m) / (2.0 * num_vec[i]);
+
+            }
 
         }
-        // temperature equation, temperature part
+        /*// temperature equation, temperature part
         local_Jac
             .template block<temperature_size, temperature_size>(
                 temperature_index, temperature_index)
@@ -388,13 +460,38 @@ public:
         local_Jac
             .template block<displacement_size, temperature_size>(
                 displacement_index, temperature_index)
-            .noalias() -= KuT;
+            .noalias() -= KuT;*/
 
         local_rhs.template block<temperature_size, 1>(temperature_index, 0)
            .noalias() -= KTT * T + DTT * T_dot;
 
         local_rhs.template block<displacement_size, 1>(displacement_index, 0)
            .noalias() += KuT * T;
+
+        /*// compare analytical Jac to numerical Jac
+        for (Eigen::MatrixXd::Index i = 0; i < local_matrix_size; i++)
+        {
+            for (Eigen::MatrixXd::Index j = 0; j < local_matrix_size; j++)
+            {
+                double Jac_analytical = local_Jac(i,j);
+                double Jac_numerical = local_Jac_numerical(i,j);
+                if (Jac_analytical > 1e-8 && Jac_numerical > 1e-8)
+                {
+                    double relative_deviation =
+                            std::abs(Jac_numerical - Jac_analytical) / Jac_analytical;
+                    if (relative_deviation > 1e-2)
+                    {
+                        OGS_FATAL("Deviation larger than the tolerance.");
+                    }
+                }
+                else if (Jac_analytical <= 1e-8 && Jac_numerical > 1e-8)
+                {
+                    OGS_FATAL("Numerical Jacobian element does not equal zero.");
+                }
+            }
+        }*/
+
+        local_Jac = local_Jac_numerical;
 
         // Eigen::EigenSolver<JacobianMatrix> eigensolver(local_Jac);
         // std::cout << "eigenvalues" << eigensolver.eigenvalues() << "\n";
