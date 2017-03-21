@@ -114,20 +114,27 @@ std::unique_ptr<Process> createThermoMechanicsProcess(
          solid_density.name.c_str());
 
     // Linear thermal expansion coefficient
-    const double linear_thermal_expansion_coefficient =
+    auto& linear_thermal_expansion_coefficient = findParameter<double>(
+        config,
         //! \ogs_file_param_special{process__THERMOMECHANICS_linear_thermal_expansion_coefficient}
-        config.getConfigParameter<double>("linear_thermal_expansion_coefficient");
+        "linear_thermal_expansion_coefficient",
+        parameters, 1);
+    DBUG("Use \'%s\' as linear thermal expansion coefficient.",
+         linear_thermal_expansion_coefficient.name.c_str());
     // Specific heat capacity
-    const double specific_heat_capacity =
+    auto& specific_heat_capacity = findParameter<double>(
+        config,
         //! \ogs_file_param_special{process__THERMOMECHANICS_specific_heat_capacity}
-        config.getConfigParameter<double>("specific_heat_capacity");
+        "specific_heat_capacity", parameters, 1);
+    DBUG("Use \'%s\' as specific heat capacity parameter.",
+         specific_heat_capacity.name.c_str());
     // Thermal conductivity
     auto& thermal_conductivity = findParameter<double>(
-            config,
-            //! \ogs_file_param_special{process__THERMOMECHANICS_thermal_conductivity}
-            "thermal_conductivity", parameters, 1);
-        DBUG("Use \'%s\' as thermal conductivity parameter.",
-             thermal_conductivity.name.c_str());
+        config,
+        //! \ogs_file_param_special{process__THERMOMECHANICS_thermal_conductivity}
+        "thermal_conductivity", parameters, 1);
+    DBUG("Use \'%s\' as thermal conductivity parameter.",
+         thermal_conductivity.name.c_str());
     // Reference temperature
     const double reference_temperature =
         //! \ogs_file_param_special{process__THERMOMECHANICS_reference_temperature}
