@@ -120,29 +120,36 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
     }
 
     // Residual stiffness
-    const double residual_stiffness =
+    auto& residual_stiffness = findParameter<double>(
+        config,
         //! \ogs_file_param_special{process__TMPHASE_FIELD_residual_stiffness}
-        config.getConfigParameter<double>("residual_stiffness");
+        "residual_stiffness", parameters, 1);
+    DBUG("Use \'%s\' as residual stiffness.",
+        residual_stiffness.name.c_str());
+
     // Crack resistance
-    const double crack_resistance =
+    auto& crack_resistance = findParameter<double>(
+        config,
         //! \ogs_file_param_special{process__TMPHASE_FIELD_crack_resistance}
-        config.getConfigParameter<double>("crack_resistance");
+        "crack_resistance", parameters, 1);
+    DBUG("Use \'%s\' as crack resistance.",
+        crack_resistance.name.c_str());
+
     // Crack length scale
-    const double crack_length_scale =
+    auto& crack_length_scale = findParameter<double>(
+        config,
         //! \ogs_file_param_special{process__TMPHASE_FIELD_crack_length_scale}
-        config.getConfigParameter<double>("crack_length_scale");
+        "crack_length_scale", parameters, 1);
+    DBUG("Use \'%s\' as crack length scale.",
+        crack_length_scale.name.c_str());
+
     // Kinetic coefficient
-    const double kinetic_coefficient =
+    auto& kinetic_coefficient = findParameter<double>(
+        config,
         //! \ogs_file_param_special{process__TMPHASE_FIELD_kinetic_coefficient}
-        config.getConfigParameter<double>("kinetic_coefficient");
-    // Penalty constant
-    const double penalty_constant =
-        //! \ogs_file_param_special{process__TMPHASE_FIELD_penalty_constant}
-        config.getConfigParameter<double>("penalty_constant");
-    // Critical tolerance
-    const double critical_tolerance =
-        //! \ogs_file_param_special{process__TMPHASE_FIELD_critical_tolerance}
-        config.getConfigParameter<double>("critical_tolerance");
+        "kinetic_coefficient", parameters, 1);
+    DBUG("Use \'%s\' as kinetic coefficient.",
+        kinetic_coefficient.name.c_str());
 
     // Solid density
     auto& solid_density = findParameter<double>(
@@ -151,23 +158,31 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
         "solid_density",
         parameters, 1);
     DBUG("Use \'%s\' as solid density parameter.",
-         solid_density.name.c_str());
+        solid_density.name.c_str());
 
     // Linear thermal expansion coefficient
-    const double linear_thermal_expansion_coefficient =
+    auto& linear_thermal_expansion_coefficient = findParameter<double>(
+        config,
         //! \ogs_file_param_special{process__TMPHASE_FIELD_linear_thermal_expansion_coefficient}
-        config.getConfigParameter<double>("linear_thermal_expansion_coefficient");
+        "linear_thermal_expansion_coefficient", parameters, 1);
+    DBUG("Use \'%s\' as linear thermal expansion coefficient.",
+        linear_thermal_expansion_coefficient.name.c_str());
+
     // Specific heat capacity
-    const double specific_heat_capacity =
+    auto& specific_heat_capacity = findParameter<double>(
+        config,
         //! \ogs_file_param_special{process__TMPHASE_FIELD_specific_heat_capacity}
-        config.getConfigParameter<double>("specific_heat_capacity");
+        "specific_heat_capacity", parameters, 1);
+    DBUG("Use \'%s\' as specific heat capacity.",
+        specific_heat_capacity.name.c_str());
+
     // Thermal conductivity
     auto& thermal_conductivity = findParameter<double>(
-            config,
-            //! \ogs_file_param_special{process__TMPHASE_FIELD_thermal_conductivity}
-            "thermal_conductivity", parameters, 1);
-        DBUG("Use \'%s\' as thermal conductivity parameter.",
-             thermal_conductivity.name.c_str());
+        config,
+        //! \ogs_file_param_special{process__TMPHASE_FIELD_thermal_conductivity}
+        "thermal_conductivity", parameters, 1);
+    DBUG("Use \'%s\' as thermal conductivity parameter.",
+        thermal_conductivity.name.c_str());
     // Reference temperature
     const double reference_temperature =
         //! \ogs_file_param_special{process__TMPHASE_FIELD_reference_temperature}
@@ -192,9 +207,9 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
 
     TMPhaseFieldProcessData<DisplacementDim> process_data{
         std::move(material), residual_stiffness, crack_resistance,
-        crack_length_scale, kinetic_coefficient, penalty_constant,
-        critical_tolerance, solid_density, linear_thermal_expansion_coefficient,
-        specific_heat_capacity, thermal_conductivity, reference_temperature,
+        crack_length_scale, kinetic_coefficient, solid_density,
+        linear_thermal_expansion_coefficient, specific_heat_capacity,
+        thermal_conductivity, reference_temperature,
         specific_body_force};
 
     SecondaryVariableCollection secondary_variables;
