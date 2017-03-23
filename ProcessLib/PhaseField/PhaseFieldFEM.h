@@ -17,6 +17,7 @@
 
 #include "MaterialLib/SolidModels/KelvinVector.h"
 #include "MaterialLib/SolidModels/LinearElasticIsotropicPhaseField.h"
+#include "MaterialLib/SolidModels/LinearElasticIsotropic.h"
 #include "MathLib/LinAlg/Eigen/EigenMapTools.h"
 #include "NumLib/Extrapolation/ExtrapolatableElement.h"
 #include "NumLib/Fem/FiniteElement/TemplateIsoparametric.h"
@@ -58,6 +59,8 @@ struct IntegrationPointData final
           _solid_material(other._solid_material),
           _material_state_variables(std::move(other._material_state_variables)),
           _C(std::move(other._C)),
+          _C_tensile(std::move(other._C_tensile)),
+          _C_compressive(std::move(other._C_compressive)),
           integration_weight(std::move(other.integration_weight)),
           strain_energy_tensile(std::move(other.strain_energy_tensile)),
           history_variable(std::move(other.history_variable)),
@@ -82,7 +85,7 @@ struct IntegrationPointData final
         DisplacementDim>::MaterialStateVariables>
         _material_state_variables;
 
-    typename BMatricesType::KelvinMatrixType _C;
+    typename BMatricesType::KelvinMatrixType _C, _C_tensile, _C_compressive;
     double integration_weight;
     double history_variable;
     double history_variable_prev;
@@ -111,7 +114,7 @@ struct IntegrationPointData final
             _solid_material)
             .specialFunction(t, x_position, _eps_prev, _eps,
                              strain_energy_tensile, _sigma_tensile,
-                             _sigma_compressive);
+                             _sigma_compressive, _C_tensile, _C_compressive);
     }
 };
 
@@ -217,6 +220,8 @@ public:
             ip_data._eps.resize(kelvin_vector_size);
             ip_data._eps_prev.resize(kelvin_vector_size);
             ip_data._C.resize(kelvin_vector_size, kelvin_vector_size);
+            ip_data._C_tensile.resize(kelvin_vector_size, kelvin_vector_size);
+            ip_data._C_compressive.resize(kelvin_vector_size, kelvin_vector_size);
             ip_data._sigma_tensile.resize(kelvin_vector_size);
             ip_data._sigma_compressive.resize(kelvin_vector_size);
             _ip_data[ip].strain_energy_tensile;
@@ -319,6 +324,8 @@ public:
             auto const& eps = _ip_data[ip]._eps;
 
             auto const& C = _ip_data[ip]._C;
+            auto const& C_tensile = _ip_data[ip]._C_tensile;
+            auto const& C_compressive = _ip_data[ip]._C_compressive;
 
             auto const& strain_energy_tensile = _ip_data[ip].strain_energy_tensile;
             auto const& sigma_tensile = _ip_data[ip]._sigma_tensile;
@@ -346,11 +353,12 @@ public:
             _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u);
 
             double const d_ip = N.dot(d);
+
             local_Jac
                 .template block<displacement_size, displacement_size>(
                     displacement_index, displacement_index)
                 .noalias() +=
-                B.transpose() * (d_ip*d_ip + k) * C * B * w;
+                B.transpose() * ((d_ip*d_ip + k) * C_tensile + C_compressive) * B * w;
 
             typename ShapeMatricesType::template MatrixType<DisplacementDim,
                                                             displacement_size>
@@ -588,12 +596,6 @@ public:
         // Update damaged region.
         double history_variable;
         double history_variable_prev;
-        auto const d =
-            Eigen::Map<typename ShapeMatricesType::template VectorType<
-                phasefield_size> const>(local_x.data() + phasefield_index,
-                                        phasefield_size);
-        double const crtol = _process_data.critical_tolerance;
-        damaged_region = d.squaredNorm() < crtol*crtol;
 
         unsigned const n_integration_points =
             _integration_method.getNumberOfPoints();

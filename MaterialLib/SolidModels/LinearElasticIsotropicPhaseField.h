@@ -74,7 +74,9 @@ public:
                          KelvinVector const& eps,
                          double& strain_energy_tensile,
                          KelvinVector& sigma_tensile,
-                         KelvinVector& sigma_compressive) const override
+                         KelvinVector& sigma_compressive,
+                         KelvinMatrix& C_tensile,
+                         KelvinMatrix& C_compressive) const override
     {
         using Invariants =
             MaterialLib::SolidModels::Invariants<KelvinVectorSize>;
@@ -104,6 +106,9 @@ public:
         sigma_compressive.noalias() =
                 (K / 2 * (eps_curr_trace - std::abs(eps_curr_trace)) *
                                 Invariants::identity2).eval();*/
+        C_tensile = KelvinMatrix::Zero();
+        C_compressive = KelvinMatrix::Zero();
+
         if (eps_curr_trace >= 0)
         {
             strain_energy_tensile =
@@ -113,6 +118,8 @@ public:
                  (K * eps_curr_trace * Invariants::identity2 +
                  2 * mu * epsd_curr).eval();
             sigma_compressive.noalias() = KelvinVector::Zero();
+            C_tensile.template topLeftCorner<3, 3>().setConstant(K);
+            C_tensile.noalias() += 2 * mu * P_dev * KelvinMatrix::Identity();
         }
         else
         {
@@ -120,7 +127,11 @@ public:
             sigma_tensile.noalias() = (2 * mu * epsd_curr).eval();
             sigma_compressive.noalias() =
                  (K * eps_curr_trace * Invariants::identity2).eval();
+            C_tensile.noalias() = 2 * mu * P_dev * KelvinMatrix::Identity();
+            C_compressive.template topLeftCorner<3, 3>().setConstant(K);
         }
+        std::cout << "C matirx tensile" << C_tensile << std::endl;
+        std::cout << "C matrix compressive" << C_compressive << std::endl;
         // KelvinVector sigma = K * eps_curr_trace * Invariants::identity2 +
         //                      2 * mu *epsd_curr;
         // std::cout << "Volumetric strain" << eps_curr_trace << std::endl;
