@@ -17,6 +17,7 @@
 
 #include "MaterialLib/SolidModels/KelvinVector.h"
 #include "MaterialLib/SolidModels/LinearElasticIsotropicPhaseField.h"
+#include "MaterialLib/SolidModels/LinearElasticIsotropic.h"
 #include "MathLib/LinAlg/Eigen/EigenMapTools.h"
 #include "NumLib/Extrapolation/ExtrapolatableElement.h"
 #include "NumLib/Fem/FiniteElement/TemplateIsoparametric.h"
@@ -58,6 +59,8 @@ struct IntegrationPointData final
           _solid_material(other._solid_material),
           _material_state_variables(std::move(other._material_state_variables)),
           _C(std::move(other._C)),
+          _C_tensile(std::move(other._C_tensile)),
+          _C_compressive(std::move(other._C_compressive)),
           integration_weight(std::move(other.integration_weight)),
           strain_energy_tensile(std::move(other.strain_energy_tensile)),
           history_variable(std::move(other.history_variable)),
@@ -82,14 +85,13 @@ struct IntegrationPointData final
         DisplacementDim>::MaterialStateVariables>
         _material_state_variables;
 
-    typename BMatricesType::KelvinMatrixType _C;
+    typename BMatricesType::KelvinMatrixType _C, _C_tensile, _C_compressive;
     double integration_weight;
     double history_variable;
     double history_variable_prev;
 
     void pushBackState()
     {
-        // history_variable_prev = history_variable;
         _eps_prev = _eps;
         _sigma_prev = _sigma;
         _material_state_variables->pushBackState();
@@ -111,7 +113,7 @@ struct IntegrationPointData final
             _solid_material)
             .specialFunction(t, x_position, _eps_prev, _eps,
                              strain_energy_tensile, _sigma_tensile,
-                             _sigma_compressive);
+                             _sigma_compressive, _C_tensile, _C_compressive);
     }
 };
 
@@ -217,6 +219,8 @@ public:
             ip_data._eps.resize(kelvin_vector_size);
             ip_data._eps_prev.resize(kelvin_vector_size);
             ip_data._C.resize(kelvin_vector_size, kelvin_vector_size);
+            ip_data._C_tensile.resize(kelvin_vector_size, kelvin_vector_size);
+            ip_data._C_compressive.resize(kelvin_vector_size, kelvin_vector_size);
             ip_data._sigma_tensile.resize(kelvin_vector_size);
             ip_data._sigma_compressive.resize(kelvin_vector_size);
             _ip_data[ip].strain_energy_tensile;
@@ -319,6 +323,8 @@ public:
             auto const& eps = _ip_data[ip]._eps;
 
             auto const& C = _ip_data[ip]._C;
+            auto const& C_tensile = _ip_data[ip]._C_tensile;
+            auto const& C_compressive = _ip_data[ip]._C_compressive;
 
             auto const& strain_energy_tensile = _ip_data[ip].strain_energy_tensile;
             auto const& sigma_tensile = _ip_data[ip]._sigma_tensile;
@@ -346,11 +352,12 @@ public:
             _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u);
 
             double const d_ip = N.dot(d);
+
             local_Jac
                 .template block<displacement_size, displacement_size>(
                     displacement_index, displacement_index)
                 .noalias() +=
-                B.transpose() * (d_ip*d_ip + k) * C * B * w;
+                B.transpose() * ((d_ip*d_ip + k) * C_tensile + C_compressive) * B * w;
 
             typename ShapeMatricesType::template MatrixType<DisplacementDim,
                                                             displacement_size>
@@ -401,136 +408,6 @@ public:
 
             Ddd.noalias() += N.transpose() / M * N * w;
 
-            /*
-            local_M
-                .template block<phasefield_size, phasefield_size>(
-                    phasefield_index, phasefield_index)
-                .noalias() += Ddd;
-
-            local_K
-                .template block<displacement_size, displacement_size>(
-                    displacement_index, displacement_index)
-                .noalias() += B.transpose() * (d_ip*d_ip + k) * C * B * w;
-
-            local_K
-                .template block<phasefield_size, phasefield_size>(
-                        phasefield_size, phasefield_size)
-                .noalias() += Kdd;
-
-            local_b
-                .template block<displacement_size, 1>(displacement_index, 0)
-                .noalias() += N_u.transpose() * rho_sr * b * w;
-
-            local_b.template block<phasefield_size, 1>(phasefield_index, 0)
-               .noalias() += N.transpose() * 0.5 * gc / ls * w;
-            */
-
-            /*
-            // displacement equation, phasefield part
-            local_Jac
-                .template block<displacement_size, phasefield_size>(
-                    displacement_index, phasefield_index)
-                .noalias() += Kud;
-
-            // phasefield equation, phasefield part.
-            local_Jac
-                .template block<phasefield_size, phasefield_size>(phasefield_index,
-                                                                  phasefield_index)
-                .noalias() += Kdd + Ddd / dt;
-
-            // phasefield equation, displacement part.
-            local_Jac
-                .template block<phasefield_size, displacement_size>(
-                    phasefield_index, displacement_index)
-                .noalias() += Kdu;
-            */
-
-            // calculate numerical Jac
-            /*double num_p = 1e-8;
-            Eigen::VectorXd num_vec = Eigen::VectorXd::Zero(local_matrix_size);
-            std::vector<double> local_perturbed = local_x;
-            for (Eigen::MatrixXd::Index i = 0; i < local_matrix_size; i++)
-            {
-                num_vec[i] = num_p * (1 + std::abs(local_x[i]));
-                local_perturbed[i] += num_vec[i];
-                auto d_p = Eigen::Map<typename ShapeMatricesType::template VectorType<
-                    phasefield_size> const>(local_perturbed.data() + phasefield_index,
-                                            phasefield_size);
-                auto u_p = Eigen::Map<typename ShapeMatricesType::template VectorType<
-                    displacement_size> const>(local_perturbed.data() + displacement_index,
-                                              displacement_size);
-                double const d_ip_p = N.dot(d_p);
-                _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u_p);
-                local_b_p
-                    .template block<displacement_size, 1>(displacement_index, 0)
-                    .noalias() =
-                    (B.transpose() * ((d_ip_p*d_ip_p + k) * sigma_tensile + sigma_compressive)
-                                      - N_u.transpose() * rho_sr * b) * w;
-                local_b_p
-                   .template block<phasefield_size, 1>(phasefield_index, 0)
-                   .noalias() =
-                   (N.transpose() * d_ip_p / dt / M +
-                    Kdd_1 * d_p +
-                    N.transpose() * d_ip_p * 2 * history_variable_prev -
-                    N.transpose() * 0.5 * gc / ls * (1 - d_ip_p)) *
-                   w;
-                local_perturbed[i] = local_x[i] - num_vec[i];
-                auto d_m = Eigen::Map<typename ShapeMatricesType::template VectorType<
-                    phasefield_size> const>(local_perturbed.data() + phasefield_index,
-                                            phasefield_size);
-                auto u_m = Eigen::Map<typename ShapeMatricesType::template VectorType<
-                    displacement_size> const>(local_perturbed.data() + displacement_index,
-                                              displacement_size);
-                double const d_ip_m = N.dot(d_m);
-                _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u_m);
-                local_b_m
-                    .template block<displacement_size, 1>(displacement_index, 0)
-                    .noalias() =
-                    (B.transpose() * ((d_ip_m*d_ip_m + k) * sigma_tensile + sigma_compressive)
-                                      - N_u.transpose() * rho_sr * b) * w;
-                local_b_m
-                   .template block<phasefield_size, 1>(phasefield_index, 0)
-                   .noalias() =
-                   (N.transpose() * d_ip_m / dt / M +
-                    Kdd_1 * d_m +
-                    N.transpose() * d_ip_m * 2 * history_variable_prev -
-                    N.transpose() * 0.5 * gc / ls * (1 - d_ip_m)) *
-                   w;
-                local_perturbed[i] = local_x[i];
-                local_Jac_numerical.col(i).noalias() += (local_b_p - local_b_m) / (2.0 * num_vec[i]);
-
-            }*/
-
-            // local_rhs.template block<phasefield_size, 1>(phasefield_index, 0)
-            //     .noalias() -=
-            //     (Kdd_1 * d +
-            //      N.transpose() * d_ip * eps.transpose() * C * eps -
-            //      N.transpose() * 0.5 * gc / ls * (1 - d_ip)) *
-            //     w;
-
-            // Additional penalty term if inside the damaged region
-            //if (damaged_region)
-            //{
-            //    Kdd.template block<phasefield_size, phasefield_size>(phasefield_index, 0)
-            //        .noalias() += N.transpose() / gamma * N * w;
-            //    local_rhs
-            //        .template block<phasefield_size, 1>(phasefield_index, 0)
-            //        .noalias() -= N.transpose() * d_ip / gamma * w;
-                // damping
-                // local_rhs
-                //     .template block<displacement_size, 1>(displacement_index, 0)
-                //     .noalias() = 0.5 * local_rhs
-                //         .template block<displacement_size, 1>(displacement_index, 0);
-                // local_rhs
-                //     .template block<phasefield_size, 1>(phasefield_index, 0)
-                //     .noalias() = 0.5 * local_rhs
-                //         .template block<phasefield_size, 1>(phasefield_index, 0);
-            //}
-
-            // phasefield equation, displacement part.
-            //
-            // Reusing Kud.transpose().
-
         }
         // displacement equation, phasefield part
         local_Jac
@@ -550,32 +427,6 @@ public:
                 phasefield_index, displacement_index)
             .noalias() += Kdu;
 
-        // compare analytical Jac to numerical Jac
-        /*for (Eigen::MatrixXd::Index i = 0; i < local_matrix_size; i++)
-        {
-            for (Eigen::MatrixXd::Index j = 0; j < local_matrix_size; j++)
-            {
-                double Jac_analytical = local_Jac(i,j);
-                double Jac_numerical = local_Jac_numerical(i,j);
-                if (Jac_analytical != 0 && Jac_numerical != 0)
-                {
-                    double relative_deviation =
-                            std::abs((Jac_numerical - Jac_analytical) / Jac_analytical);
-                    if (relative_deviation > 1e-4)
-                    {
-                        std::cout << "row: " << i << std::endl;
-                        std::cout << "column: " << j << std::endl;
-                        std::cout << "relative_deviation: " << relative_deviation << std::endl;
-                        OGS_FATAL("Deviation larger than the tolerance.");
-                    }
-                }
-                else if (Jac_analytical = 0 && Jac_numerical > 1e-2)
-                {
-                    OGS_FATAL("Numerical Jacobian element does not equal zero.");
-                }
-            }
-        }*/
-
         // Eigen::EigenSolver<JacobianMatrix> eigensolver(local_Jac);
         // std::cout << "eigenvalues" << eigensolver.eigenvalues() << "\n";
 
@@ -586,14 +437,6 @@ public:
                              double const /*delta_t*/) override
     {
         // Update damaged region.
-        double history_variable;
-        double history_variable_prev;
-        auto const d =
-            Eigen::Map<typename ShapeMatricesType::template VectorType<
-                phasefield_size> const>(local_x.data() + phasefield_index,
-                                        phasefield_size);
-        double const crtol = _process_data.critical_tolerance;
-        damaged_region = d.squaredNorm() < crtol*crtol;
 
         unsigned const n_integration_points =
             _integration_method.getNumberOfPoints();
@@ -601,29 +444,12 @@ public:
         for (unsigned ip = 0; ip < n_integration_points; ip++)
         {
             _ip_data[ip].pushBackState();
-            if (history_variable_prev < history_variable)
+            if (_ip_data[ip].history_variable_prev < _ip_data[ip].history_variable)
             {
                 _ip_data[ip].history_variable_prev = _ip_data[ip].history_variable;
             }
         }
     }
-
-    /*void postTimestepConcrete(std::vector<double> const& local_x) override
-    {
-        double history_variable;
-        double history_variable_prev;
-        unsigned const n_integration_points =
-            _integration_method.getNumberOfPoints();
-
-        for (unsigned ip = 0; ip < n_integration_points; ip++)
-        {
-            if (history_variable_prev < history_variable)
-            {
-                _ip_data[ip].history_variable_prev = _ip_data[ip].history_variable;
-            }
-        }
-
-    }*/
 
     Eigen::Map<const Eigen::RowVectorXd> getShapeMatrix(
         const unsigned integration_point) const override
