@@ -23,7 +23,7 @@ class SearchLength
 public:
     /// Constructor for SearchLength object with a default search length
     /// of 10 angstrom (\f$10^{-9}\f$ m)
-    explicit SearchLength(double search_length = 1e-9)
+    explicit SearchLength(double search_length = 1e-5)
         : _search_length(search_length) {}
 
     SearchLength(SearchLength const&) = default;
