@@ -69,10 +69,15 @@ public:
 
     bool specialFunction(double const t,
                          ProcessLib::SpatialPosition const& x,
+                         KelvinVector const& eps,
                          KelvinVector const& eps_m,
                          double& strain_energy_tensile,
                          KelvinVector& sigma_tensile,
-                         KelvinVector& sigma_compressive) const override
+                         KelvinVector& sigma_compressive,
+                         KelvinMatrix& C_tensile,
+                         KelvinMatrix& C_compressive,
+                         KelvinVector& sigma_real,
+                         double const degradation) const override
     {
         using Invariants =
             MaterialLib::SolidModels::Invariants<KelvinVectorSize>;
@@ -81,28 +86,43 @@ public:
 
         // calculation of deviatoric parts
         auto const& P_dev = Invariants::deviatoric_projection;
-        KelvinVector const epsd_curr = P_dev * eps_m;
+        KelvinVector const epsd_curr = P_dev * eps;
+        KelvinVector const epsdm_curr = P_dev * eps_m;
 
         // Hydrostatic part for the stress and the tangent.
-        double const eps_curr_trace = Invariants::trace(eps_m);
+        double const eps_curr_trace = Invariants::trace(eps);
+        double const epsm_curr_trace = Invariants::trace(eps_m);
 
         auto const& K =
             LinearElasticIsotropic<DisplacementDim>::_mp.bulk_modulus(t, x);
         auto const& mu =
             LinearElasticIsotropic<DisplacementDim>::_mp.mu(t, x);
 
-        strain_energy_tensile =
-                K / 8 * (eps_curr_trace + std::abs(eps_curr_trace)) *
-                                (eps_curr_trace + std::abs(eps_curr_trace)) +
-                                mu * epsd_curr.transpose() * epsd_curr;
+        C_tensile = KelvinMatrix::Zero();
+        C_compressive = KelvinMatrix::Zero();
 
-        sigma_tensile.noalias() =
-                (K / 2 * (eps_curr_trace + std::abs(eps_curr_trace)) *
-                                Invariants::identity2 + 2 * mu * epsd_curr).eval();
-
-        sigma_compressive.noalias() =
-                (K / 2 * (eps_curr_trace - std::abs(eps_curr_trace)) *
-                                Invariants::identity2).eval();
+        if (epsm_curr_trace >= 0)
+        {
+            strain_energy_tensile =
+                 K / 2 * epsm_curr_trace * epsm_curr_trace +
+                 mu * epsdm_curr.transpose() * epsdm_curr;
+            sigma_tensile.noalias() =
+                 (K * epsm_curr_trace * Invariants::identity2 +
+                 2 * mu * epsdm_curr).eval();
+            sigma_compressive.noalias() = KelvinVector::Zero();
+            C_tensile.template topLeftCorner<3, 3>().setConstant(K);
+            C_tensile.noalias() += 2 * mu * P_dev * KelvinMatrix::Identity();
+        }
+        else
+        {
+            strain_energy_tensile = mu * epsdm_curr.transpose() * epsdm_curr;
+            sigma_tensile.noalias() = (2 * mu * epsdm_curr).eval();
+            sigma_compressive.noalias() =
+                 (K * epsm_curr_trace * Invariants::identity2).eval();
+            C_tensile.noalias() = 2 * mu * P_dev * KelvinMatrix::Identity();
+            C_compressive.template topLeftCorner<3, 3>().setConstant(K);
+        }
+        sigma_real.noalias() = degradation * sigma_tensile + sigma_compressive;
         return true;
     }
 };
