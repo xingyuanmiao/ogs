@@ -32,7 +32,9 @@ struct PhaseFieldExtension : public MechanicsBase<DisplacementDim>
                                  KelvinVector& sigma_tensile,
                                  KelvinVector& sigma_compressive,
                                  KelvinMatrix& C_tensile,
-                                 KelvinMatrix& C_compressive) const = 0;
+                                 KelvinMatrix& C_compressive,
+                                 KelvinVector& sigma_real,
+                                 double const degradation) const = 0;
 
     /// Dynamic size Kelvin vector and matrix wrapper for the polymorphic
     /// constitutive relation compute function.
@@ -47,7 +49,9 @@ struct PhaseFieldExtension : public MechanicsBase<DisplacementDim>
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>&
             C_tensile,
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>&
-            C_compressive) const
+            C_compressive,
+        Eigen::Matrix<double, Eigen::Dynamic, 1>& sigma_real,
+        double const degradation) const
     {
         // TODO Avoid copies of data:
         // Using MatrixBase<Derived> not possible because template functions
@@ -60,6 +64,7 @@ struct PhaseFieldExtension : public MechanicsBase<DisplacementDim>
         KelvinVector sigma_compressive_{sigma_compressive};
         KelvinMatrix C_tensile_{C_tensile};
         KelvinMatrix C_compressive_{C_compressive};
+        KelvinVector sigma_real_{sigma_real};
 
         bool const result = specialFunction(t,
                                             x,
@@ -69,12 +74,15 @@ struct PhaseFieldExtension : public MechanicsBase<DisplacementDim>
                                             sigma_tensile_,
                                             sigma_compressive_,
                                             C_tensile_,
-                                            C_compressive_);
+                                            C_compressive_,
+                                            sigma_real_,
+                                            degradation);
 
         sigma_tensile = sigma_tensile_;
         sigma_compressive = sigma_compressive_;
         C_tensile = C_tensile_;
         C_compressive = C_compressive_;
+        sigma_real = sigma_real_;
         return result;
     }
 

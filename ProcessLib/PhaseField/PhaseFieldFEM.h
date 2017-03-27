@@ -66,7 +66,8 @@ struct IntegrationPointData final
           history_variable(std::move(other.history_variable)),
           history_variable_prev(std::move(other.history_variable_prev)),
           _sigma_tensile(std::move(other._sigma_tensile)),
-          _sigma_compressive(std::move(other._sigma_compressive))
+          _sigma_compressive(std::move(other._sigma_compressive)),
+          _sigma_real(std::move(other._sigma_real))
     {
     }
 #endif  // _MSC_VER
@@ -77,7 +78,7 @@ struct IntegrationPointData final
     typename BMatricesType::KelvinVectorType _sigma, _sigma_prev;
     typename BMatricesType::KelvinVectorType _eps, _eps_prev;
 
-    typename BMatricesType::KelvinVectorType _sigma_tensile, _sigma_compressive;
+    typename BMatricesType::KelvinVectorType _sigma_tensile, _sigma_compressive, _sigma_real_prev, _sigma_real;
     double strain_energy_tensile;
 
     MaterialLib::Solids::MechanicsBase<DisplacementDim>& _solid_material;
@@ -94,6 +95,7 @@ struct IntegrationPointData final
     {
         _eps_prev = _eps;
         _sigma_prev = _sigma;
+        _sigma_real_prev = _sigma_real;
         _material_state_variables->pushBackState();
     }
 
@@ -102,8 +104,17 @@ struct IntegrationPointData final
         double const t,
         SpatialPosition const& x_position,
         double const dt,
-        DisplacementVectorType const& u)
+        DisplacementVectorType const& u,
+        double const degradation)
     {
+        /*assert(
+            dynamic_cast<typename MaterialLib::Solids::LinearElasticIsotropicPhaseField<
+                DisplacementDim>::MaterialStateVariables*>(
+                _material_state_variables.get()) != nullptr);
+        static_cast<typename MaterialLib::Solids::LinearElasticIsotropicPhaseField<
+                DisplacementDim>::MaterialStateVariables*>(
+                _material_state_variables.get())
+                ->degradation = degradation;*/
         _eps.noalias() = _b_matrices * u;
         _solid_material.computeConstitutiveRelation(
             t, x_position, dt, _eps_prev, _eps, _sigma_prev, _sigma, _C,
@@ -113,7 +124,7 @@ struct IntegrationPointData final
             _solid_material)
             .specialFunction(t, x_position, _eps_prev, _eps,
                              strain_energy_tensile, _sigma_tensile,
-                             _sigma_compressive, _C_tensile, _C_compressive);
+                             _sigma_compressive, _C_tensile, _C_compressive, _sigma_real, degradation);
     }
 };
 
@@ -226,6 +237,7 @@ public:
             _ip_data[ip].strain_energy_tensile;
             _ip_data[ip].history_variable;
             _ip_data[ip].history_variable_prev;
+            ip_data._sigma_real.resize(kelvin_vector_size);
 
             ip_data._N = shape_matrices[ip].N;
             ip_data._dNdx = shape_matrices[ip].dNdx;
@@ -333,6 +345,8 @@ public:
             auto& history_variable = _ip_data[ip].history_variable;
             auto& history_variable_prev = _ip_data[ip].history_variable_prev;
 
+            auto const& sigma_real = _ip_data[ip]._sigma_real;
+
             // auto const [&](member){ return _process_data.member(t,
             // x_position); };
             double const k = _process_data.residual_stiffness;
@@ -349,15 +363,16 @@ public:
             //
             // displacement equation, displacement part
             //
-            _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u);
 
             double const d_ip = N.dot(d);
+            double const degradation = d_ip * d_ip + k;
+            _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u, degradation);
 
             local_Jac
                 .template block<displacement_size, displacement_size>(
                     displacement_index, displacement_index)
                 .noalias() +=
-                B.transpose() * ((d_ip*d_ip + k) * C_tensile + C_compressive) * B * w;
+                B.transpose() * (degradation * C_tensile + C_compressive) * B * w;
 
             typename ShapeMatricesType::template MatrixType<DisplacementDim,
                                                             displacement_size>
@@ -374,7 +389,7 @@ public:
             local_rhs
                 .template segment<displacement_size>(displacement_index)
                 .noalias() -=
-                (B.transpose() * ((d_ip*d_ip + k) * sigma_tensile + sigma_compressive)
+                (B.transpose() * sigma_real
                                   - N_u.transpose() * rho_sr * b) * w;
 
             //
@@ -514,9 +529,9 @@ private:
 
         for (auto const& ip_data : _ip_data) {
             if (component < 3)  // xx, yy, zz components
-                cache.push_back(ip_data._sigma[component]);
+                cache.push_back(ip_data._sigma_real[component]);
             else    // mixed xy, yz, xz components
-                cache.push_back(ip_data._sigma[component] / std::sqrt(2));
+                cache.push_back(ip_data._sigma_real[component] / std::sqrt(2));
         }
 
         return cache;

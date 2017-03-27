@@ -76,7 +76,9 @@ public:
                          KelvinVector& sigma_tensile,
                          KelvinVector& sigma_compressive,
                          KelvinMatrix& C_tensile,
-                         KelvinMatrix& C_compressive) const override
+                         KelvinMatrix& C_compressive,
+                         KelvinVector& sigma_real,
+                         double const degradation) const override
     {
         using Invariants =
             MaterialLib::SolidModels::Invariants<KelvinVectorSize>;
@@ -130,6 +132,8 @@ public:
             C_tensile.noalias() = 2 * mu * P_dev * KelvinMatrix::Identity();
             C_compressive.template topLeftCorner<3, 3>().setConstant(K);
         }
+
+        sigma_real.noalias() = degradation * sigma_tensile + sigma_compressive;
         // std::cout << "C matirx tensile" << C_tensile << std::endl;
         // std::cout << "C matrix compressive" << C_compressive << std::endl;
         // KelvinVector sigma = K * eps_curr_trace * Invariants::identity2 +
