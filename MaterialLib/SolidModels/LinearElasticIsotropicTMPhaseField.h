@@ -72,7 +72,11 @@ public:
                          KelvinVector const& eps_m,
                          double& strain_energy_tensile,
                          KelvinVector& sigma_tensile,
-                         KelvinVector& sigma_compressive) const override
+                         KelvinVector& sigma_compressive,
+                         KelvinMatrix& C_tensile,
+                         KelvinMatrix& C_compressive,
+                         KelvinVector& sigma_real,
+                         double const degradation) const override
     {
         using Invariants =
             MaterialLib::SolidModels::Invariants<KelvinVectorSize>;
@@ -91,18 +95,31 @@ public:
         auto const& mu =
             LinearElasticIsotropic<DisplacementDim>::_mp.mu(t, x);
 
-        strain_energy_tensile =
-                K / 8 * (eps_curr_trace + std::abs(eps_curr_trace)) *
-                                (eps_curr_trace + std::abs(eps_curr_trace)) +
-                                mu * epsd_curr.transpose() * epsd_curr;
+        C_tensile = KelvinMatrix::Zero();
+        C_compressive = KelvinMatrix::Zero();
 
-        sigma_tensile.noalias() =
-                (K / 2 * (eps_curr_trace + std::abs(eps_curr_trace)) *
-                                Invariants::identity2 + 2 * mu * epsd_curr).eval();
-
-        sigma_compressive.noalias() =
-                (K / 2 * (eps_curr_trace - std::abs(eps_curr_trace)) *
-                                Invariants::identity2).eval();
+        if (eps_curr_trace >= 0)
+        {
+            strain_energy_tensile =
+                 K / 2 * eps_curr_trace * eps_curr_trace +
+                 mu * epsd_curr.transpose() * epsd_curr;
+            sigma_tensile.noalias() =
+                 (K * eps_curr_trace * Invariants::identity2 +
+                 2 * mu * epsd_curr).eval();
+            sigma_compressive.noalias() = KelvinVector::Zero();
+            C_tensile.template topLeftCorner<3, 3>().setConstant(K);
+            C_tensile.noalias() += 2 * mu * P_dev * KelvinMatrix::Identity();
+        }
+        else
+        {
+            strain_energy_tensile = mu * epsd_curr.transpose() * epsd_curr;
+            sigma_tensile.noalias() = (2 * mu * epsd_curr).eval();
+            sigma_compressive.noalias() =
+                 (K * eps_curr_trace * Invariants::identity2).eval();
+            C_tensile.noalias() = 2 * mu * P_dev * KelvinMatrix::Identity();
+            C_compressive.template topLeftCorner<3, 3>().setConstant(K);
+        }
+        sigma_real.noalias() = degradation * sigma_tensile + sigma_compressive;
         return true;
     }
 };

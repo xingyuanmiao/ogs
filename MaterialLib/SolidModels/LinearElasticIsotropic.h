@@ -103,7 +103,7 @@ public:
         C.noalias() += 2 * _mp.mu(t, x) * KelvinMatrix::Identity();
 
         sigma.noalias() = sigma_prev + C * (eps - eps_prev);
-        std::cout << "C matrix" << C << std::endl;
+        // std::cout << "C matrix" << C << std::endl;
         // std::cout << "Original stress" << sigma << std::endl;
         return true;
     }
