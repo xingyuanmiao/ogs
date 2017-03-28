@@ -157,6 +157,25 @@ struct PhaseFieldLocalAssemblerInterface
 
     virtual std::vector<double> const& getIntPtSigmaYZ(
         std::vector<double>& cache) const = 0;
+
+    virtual std::vector<double> const& getIntPtEpsilonXX(
+        std::vector<double>& cache) const = 0;
+
+    virtual std::vector<double> const& getIntPtEpsilonYY(
+        std::vector<double>& cache) const = 0;
+
+    virtual std::vector<double> const& getIntPtEpsilonZZ(
+        std::vector<double>& cache) const = 0;
+
+    virtual std::vector<double> const& getIntPtEpsilonXY(
+        std::vector<double>& cache) const = 0;
+
+    virtual std::vector<double> const& getIntPtEpsilonXZ(
+        std::vector<double>& cache) const = 0;
+
+    virtual std::vector<double> const& getIntPtEpsilonYZ(
+        std::vector<double>& cache) const = 0;
+
 };
 
 template <typename ShapeFunction, typename IntegrationMethod,
@@ -399,25 +418,29 @@ public:
 
             double const d_dot_ip = N.dot(d_dot);
 
-            if (history_variable < strain_energy_tensile)
+            if (history_variable_prev < strain_energy_tensile)
             {
                 history_variable = strain_energy_tensile;
                 // INFO("History variable %g:", history_variable);
                 // INFO("History variable previous %g:", history_variable_prev);
-                // Kdu.noalias() = Kud.transpose();
+                Kdu.noalias() = Kud.transpose();
+            }
+            else
+            {
+                history_variable = history_variable_prev;
             }
             //
             // phasefield equation, phasefield part.
             //
             Kdd.noalias() += (Kdd_1 +
-                              N.transpose() * 2 * history_variable_prev * N +
+                              N.transpose() * 2 * history_variable * N +
                               N.transpose() * 0.5 * gc / ls * N) *
                              w;
             local_rhs.template segment<phasefield_size>(phasefield_index)
                .noalias() -=
                (N.transpose() * d_dot_ip / M +
                 Kdd_1 * d +
-                N.transpose() * d_ip * 2 * history_variable_prev -
+                N.transpose() * d_ip * 2 * history_variable -
                 N.transpose() * 0.5 * gc / ls * (1 - d_ip)) *
                w;
 
@@ -513,6 +536,44 @@ public:
         return getIntPtSigma(cache, 5);
     }
 
+    std::vector<double> const& getIntPtEpsilonXX(
+        std::vector<double>& cache) const override
+    {
+        return getIntPtEpsilon(cache, 0);
+    }
+
+    std::vector<double> const& getIntPtEpsilonYY(
+        std::vector<double>& cache) const override
+    {
+        return getIntPtEpsilon(cache, 1);
+    }
+
+    std::vector<double> const& getIntPtEpsilonZZ(
+        std::vector<double>& cache) const override
+    {
+        return getIntPtEpsilon(cache, 2);
+    }
+
+    std::vector<double> const& getIntPtEpsilonXY(
+        std::vector<double>& cache) const override
+    {
+        return getIntPtEpsilon(cache, 3);
+    }
+
+    std::vector<double> const& getIntPtEpsilonXZ(
+        std::vector<double>& cache) const override
+    {
+        assert(DisplacementDim == 3);
+        return getIntPtEpsilon(cache, 4);
+    }
+
+    std::vector<double> const& getIntPtEpsilonYZ(
+        std::vector<double>& cache) const override
+    {
+        assert(DisplacementDim == 3);
+        return getIntPtEpsilon(cache, 5);
+    }
+
 private:
     // std::vector<double> _local_M_data;
     // std::vector<double> _local_K_data;
@@ -532,6 +593,19 @@ private:
                 cache.push_back(ip_data._sigma_real[component]);
             else    // mixed xy, yz, xz components
                 cache.push_back(ip_data._sigma_real[component] / std::sqrt(2));
+        }
+
+        return cache;
+    }
+
+    std::vector<double> const& getIntPtEpsilon(std::vector<double>& cache,
+                                               std::size_t const component) const
+    {
+        cache.clear();
+        cache.reserve(_ip_data.size());
+
+        for (auto const& ip_data : _ip_data) {
+            cache.push_back(ip_data._eps[component]);
         }
 
         return cache;

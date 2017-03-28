@@ -142,7 +142,7 @@ public:
         // std::cout << "Deviatoric strain" << epsd_curr << std::endl;
         // std::cout << "Tensile stress" << sigma_tensile << std::endl;
         // std::cout << "Compressive stress" << sigma_compressive << std::endl;
-        // std::cout << "Stress" << sigma << std::endl;
+        // std::cout << "Stress" << sigma_real << std::endl;
         // std::cout << "strain energy tensile" << strain_energy_tensile << std::endl;
         return true;
     }
