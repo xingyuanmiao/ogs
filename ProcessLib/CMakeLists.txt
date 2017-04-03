@@ -27,9 +27,6 @@ APPEND_SOURCE_FILES(SOURCES TwoPhaseFlowWithPrho)
 add_subdirectory(SmallDeformation)
 APPEND_SOURCE_FILES(SOURCES SmallDeformation)
 
-add_subdirectory(TMPhaseField)
-APPEND_SOURCE_FILES(SOURCES TMPhaseField)
-
 add_subdirectory(ThermoMechanics)
 APPEND_SOURCE_FILES(SOURCES ThermoMechanics)
 
