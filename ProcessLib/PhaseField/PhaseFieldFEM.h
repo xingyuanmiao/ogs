@@ -368,11 +368,10 @@ public:
 
             // auto const [&](member){ return _process_data.member(t,
             // x_position); };
-            double const k = _process_data.residual_stiffness;
-            double const gc = _process_data.crack_resistance;
-            double const ls = _process_data.crack_length_scale;
-            double const M = _process_data.kinetic_coefficient;
-            double const gamma = _process_data.penalty_constant;
+            double const k = _process_data.residual_stiffness(t, x_position)[0];
+            double const gc = _process_data.crack_resistance(t, x_position)[0];
+            double const ls = _process_data.crack_length_scale(t, x_position)[0];
+            double const M = _process_data.kinetic_coefficient(t, x_position)[0];
             auto const rho_sr = _process_data.solid_density(t, x_position)[0];
             auto const& b = _process_data.specific_body_force;
 
@@ -409,7 +408,7 @@ public:
                 .template segment<displacement_size>(displacement_index)
                 .noalias() -=
                 (B.transpose() * sigma_real
-                                  - N_u.transpose() * rho_sr * b) * w;
+                 - N_u.transpose() * rho_sr * b) * w;
 
             //
             // displacement equation, phasefield part
@@ -429,6 +428,7 @@ public:
             {
                 history_variable = history_variable_prev;
             }
+
             //
             // phasefield equation, phasefield part.
             //
@@ -474,8 +474,6 @@ public:
                              double const /*t*/,
                              double const /*delta_t*/) override
     {
-        // Update damaged region.
-
         unsigned const n_integration_points =
             _integration_method.getNumberOfPoints();
 
@@ -575,12 +573,6 @@ public:
     }
 
 private:
-    // std::vector<double> _local_M_data;
-    // std::vector<double> _local_K_data;
-    // std::vector<double> _local_b_data;
-    // std::vector<double> _local_Jac_data;
-    // std::vector<double> _local_xdot_data;
-    // std::vector<double> _local_x_perturbed_data;
 
     std::vector<double> const& getIntPtSigma(std::vector<double>& cache,
                                              std::size_t const component) const
@@ -620,10 +612,6 @@ private:
     IntegrationMethod _integration_method;
     MeshLib::Element const& _element;
     SecondaryData<typename ShapeMatrices::ShapeType> _secondary_data;
-
-    /// CR_{l-1} := { x \in \Omega s.t. d < CRTOL }. Damaged region indicator.
-    /// true means "is damaged". Updated after a timestep.
-    bool damaged_region;
 
     static const int phasefield_index = 0;
     static const int phasefield_size = ShapeFunction::NPOINTS;

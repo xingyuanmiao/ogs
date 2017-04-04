@@ -106,29 +106,36 @@ std::unique_ptr<Process> createPhaseFieldProcess(
     }
 
     // Residual stiffness
-    const double residual_stiffness =
-        //! \ogs_file_param_special{process__PHASE_FIELD_residual_stiffness}
-        config.getConfigParameter<double>("residual_stiffness");
+    auto& residual_stiffness = findParameter<double>(
+        config,
+        //! \ogs_file_param_special{process__TMPHASE_FIELD_residual_stiffness}
+        "residual_stiffness", parameters, 1);
+    DBUG("Use \'%s\' as residual stiffness.",
+        residual_stiffness.name.c_str());
+
     // Crack resistance
-    const double crack_resistance =
-        //! \ogs_file_param_special{process__PHASE_FIELD_crack_resistance}
-        config.getConfigParameter<double>("crack_resistance");
+    auto& crack_resistance = findParameter<double>(
+        config,
+        //! \ogs_file_param_special{process__TMPHASE_FIELD_crack_resistance}
+        "crack_resistance", parameters, 1);
+    DBUG("Use \'%s\' as crack resistance.",
+        crack_resistance.name.c_str());
+
     // Crack length scale
-    const double crack_length_scale =
-        //! \ogs_file_param_special{process__PHASE_FIELD_crack_length_scale}
-        config.getConfigParameter<double>("crack_length_scale");
+    auto& crack_length_scale = findParameter<double>(
+        config,
+        //! \ogs_file_param_special{process__TMPHASE_FIELD_crack_length_scale}
+        "crack_length_scale", parameters, 1);
+    DBUG("Use \'%s\' as crack length scale.",
+        crack_length_scale.name.c_str());
+
     // Kinetic coefficient
-    const double kinetic_coefficient =
-        //! \ogs_file_param_special{process__PHASE_FIELD_kinetic_coefficient}
-        config.getConfigParameter<double>("kinetic_coefficient");
-    // Penalty constant
-    const double penalty_constant =
-        //! \ogs_file_param_special{process__PHASE_FIELD_penalty_constant}
-        config.getConfigParameter<double>("penalty_constant");
-    // Critical tolerance
-    const double critical_tolerance =
-        //! \ogs_file_param_special{process__PHASE_FIELD_critical_tolerance}
-        config.getConfigParameter<double>("critical_tolerance");
+    auto& kinetic_coefficient = findParameter<double>(
+        config,
+        //! \ogs_file_param_special{process__TMPHASE_FIELD_kinetic_coefficient}
+        "kinetic_coefficient", parameters, 1);
+    DBUG("Use \'%s\' as kinetic coefficient.",
+        kinetic_coefficient.name.c_str());
 
     // Solid density
     auto& solid_density = findParameter<double>(
@@ -158,8 +165,7 @@ std::unique_ptr<Process> createPhaseFieldProcess(
 
     PhaseFieldProcessData<DisplacementDim> process_data{
         std::move(material), residual_stiffness, crack_resistance,
-        crack_length_scale, kinetic_coefficient, penalty_constant,
-        critical_tolerance, solid_density, specific_body_force};
+        crack_length_scale, kinetic_coefficient, solid_density, specific_body_force};
 
     SecondaryVariableCollection secondary_variables;
 

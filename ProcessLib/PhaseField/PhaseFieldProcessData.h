@@ -25,12 +25,10 @@ struct PhaseFieldProcessData
     PhaseFieldProcessData(
         std::unique_ptr<MaterialLib::Solids::MechanicsBase<DisplacementDim>>&&
             material_,
-        double const residual_stiffness_,
-        double const crack_resistance_,
-        double const crack_length_scale_,
-        double const kinetic_coefficient_,
-        double const penalty_constant_,
-        double const critical_tolerance_,
+        Parameter<double> const& residual_stiffness_,
+        Parameter<double> const& crack_resistance_,
+        Parameter<double> const& crack_length_scale_,
+        Parameter<double> const& kinetic_coefficient_,
         Parameter<double> const& solid_density_,
         Eigen::Matrix<double, DisplacementDim, 1> const& specific_body_force_)
         : material{std::move(material_)},
@@ -38,8 +36,6 @@ struct PhaseFieldProcessData
           crack_resistance(crack_resistance_),
           crack_length_scale(crack_length_scale_),
           kinetic_coefficient(kinetic_coefficient_),
-          penalty_constant(penalty_constant_),
-          critical_tolerance(critical_tolerance_),
           solid_density(solid_density_),
           specific_body_force(specific_body_force_)
     {
@@ -51,8 +47,6 @@ struct PhaseFieldProcessData
           crack_resistance(other.crack_resistance),
           crack_length_scale(other.crack_length_scale),
           kinetic_coefficient(other.kinetic_coefficient),
-          penalty_constant(other.penalty_constant),
-          critical_tolerance(other.critical_tolerance),
           solid_density(other.solid_density),
           specific_body_force(other.specific_body_force),
           dt(other.dt),
@@ -71,12 +65,10 @@ struct PhaseFieldProcessData
 
     std::unique_ptr<MaterialLib::Solids::MechanicsBase<DisplacementDim>>
         material;
-    double const residual_stiffness;
-    double const crack_resistance;
-    double const crack_length_scale;
-    double const kinetic_coefficient;
-    double const penalty_constant;
-    double const critical_tolerance;
+    Parameter<double> const& residual_stiffness;
+    Parameter<double> const& crack_resistance;
+    Parameter<double> const& crack_length_scale;
+    Parameter<double> const& kinetic_coefficient;
     Parameter<double> const& solid_density;
     Eigen::Matrix<double, DisplacementDim, 1> const specific_body_force;
     double dt;
