@@ -146,6 +146,15 @@ std::unique_ptr<Process> createPhaseFieldProcess(
     DBUG("Use \'%s\' as solid density parameter.",
          solid_density.name.c_str());
 
+    // History field
+    auto& history_field = findParameter<double>(
+        config,
+        //! \ogs_file_param_special{process__PHASE_FIELD_history_field}
+        "history_field",
+        parameters, 1);
+    DBUG("Use \'%s\' as history field.",
+         history_field.name.c_str());
+
     // Specific body force
     Eigen::Matrix<double, DisplacementDim, 1> specific_body_force;
     {
@@ -165,7 +174,8 @@ std::unique_ptr<Process> createPhaseFieldProcess(
 
     PhaseFieldProcessData<DisplacementDim> process_data{
         std::move(material), residual_stiffness, crack_resistance,
-        crack_length_scale, kinetic_coefficient, solid_density, specific_body_force};
+        crack_length_scale, kinetic_coefficient, solid_density,
+        history_field, specific_body_force};
 
     SecondaryVariableCollection secondary_variables;
 

@@ -42,8 +42,8 @@ struct IntegrationPointData final
         MaterialLib::Solids::MechanicsBase<DisplacementDim>& solid_material)
         : _solid_material(solid_material),
           _material_state_variables(
-              _solid_material.createMaterialStateVariables()),
-          history_variable(0), history_variable_prev(0)
+              _solid_material.createMaterialStateVariables())
+          /*history_variable(0), history_variable_prev(0)*/
     {
     }
 
@@ -225,6 +225,9 @@ public:
                               IntegrationMethod, DisplacementDim>(
                 e, is_axially_symmetric, _integration_method);
 
+        SpatialPosition x_position;
+        x_position.setElementID(_element.getID());
+
         for (unsigned ip = 0; ip < n_integration_points; ip++)
         {
             // displacement (subscript u)
@@ -254,8 +257,8 @@ public:
             ip_data._sigma_tensile.resize(kelvin_vector_size);
             ip_data._sigma_compressive.resize(kelvin_vector_size);
             _ip_data[ip].strain_energy_tensile;
-            _ip_data[ip].history_variable;
-            _ip_data[ip].history_variable_prev;
+            ip_data.history_variable = process_data.history_field(0, x_position)[0];
+            ip_data.history_variable_prev = process_data.history_field(0, x_position)[0];
             ip_data._sigma_real.resize(kelvin_vector_size);
 
             ip_data._N = shape_matrices[ip].N;
@@ -383,7 +386,7 @@ public:
             //
 
             double const d_ip = N.dot(d);
-            double const degradation = d_ip * d_ip + k;
+            double const degradation = d_ip * d_ip * (1 - k) + k;
             _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u, degradation);
 
             local_Jac

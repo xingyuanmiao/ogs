@@ -30,6 +30,7 @@ struct PhaseFieldProcessData
         Parameter<double> const& crack_length_scale_,
         Parameter<double> const& kinetic_coefficient_,
         Parameter<double> const& solid_density_,
+        Parameter<double>& history_field_,
         Eigen::Matrix<double, DisplacementDim, 1> const& specific_body_force_)
         : material{std::move(material_)},
           residual_stiffness(residual_stiffness_),
@@ -37,6 +38,7 @@ struct PhaseFieldProcessData
           crack_length_scale(crack_length_scale_),
           kinetic_coefficient(kinetic_coefficient_),
           solid_density(solid_density_),
+          history_field(history_field_),
           specific_body_force(specific_body_force_)
     {
     }
@@ -48,6 +50,7 @@ struct PhaseFieldProcessData
           crack_length_scale(other.crack_length_scale),
           kinetic_coefficient(other.kinetic_coefficient),
           solid_density(other.solid_density),
+          history_field(other.history_field),
           specific_body_force(other.specific_body_force),
           dt(other.dt),
           t(other.t)
@@ -70,7 +73,8 @@ struct PhaseFieldProcessData
     Parameter<double> const& crack_length_scale;
     Parameter<double> const& kinetic_coefficient;
     Parameter<double> const& solid_density;
-    Eigen::Matrix<double, DisplacementDim, 1> const specific_body_force;
+    Parameter<double>& history_field;
+    Eigen::Matrix<double, DisplacementDim, 1> const& specific_body_force;
     double dt;
     double t;
 };
