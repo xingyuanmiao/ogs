@@ -357,13 +357,8 @@ public:
             local_rhs
                 .template block<displacement_size, 1>(displacement_index, 0)
                 .noalias() -=
-                (B.transpose() * (sigma + C * alpha * delta_T * Invariants::identity2)
+                (B.transpose() * sigma
                  - N_u.transpose() * rho_s * b) * w;
-            local_rhs
-                .template block<displacement_size, 1>(displacement_index, 0)
-                .noalias() -=
-                B.transpose() * C * alpha * T0 * Invariants::identity2 * w;
-
             //
             // displacement equation, temperature part
             //
@@ -392,9 +387,6 @@ public:
 
         local_rhs.template block<temperature_size, 1>(temperature_index, 0)
            .noalias() -= KTT * T + DTT * T_dot;
-
-        local_rhs.template block<displacement_size, 1>(displacement_index, 0)
-           .noalias() += KuT * T;
 
         // Eigen::EigenSolver<JacobianMatrix> eigensolver(local_Jac);
         // std::cout << "eigenvalues" << eigensolver.eigenvalues() << "\n";
