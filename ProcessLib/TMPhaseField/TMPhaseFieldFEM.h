@@ -475,7 +475,7 @@ public:
             double const epsm_trace = Invariants::trace(eps_m);
             if (epsm_trace >= 0)
             {
-                KTT.noalias() += dNdx.transpose() * (d_ip*d_ip + k) *
+                KTT.noalias() += dNdx.transpose() * (d_ip*d_ip + 0.03) *
                                  lambda * dNdx * w;
                 KTd.noalias() += dNdx.transpose() * 2 * d_ip * lambda *
                                  dNdx * T * N * w;
