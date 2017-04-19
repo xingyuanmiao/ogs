@@ -394,14 +394,14 @@ public:
             // displacement equation, displacement part
             //
             double const d_ip = N.dot(d);
-            double const degradation = d_ip * d_ip + k;
+            double const degradation = d_ip * d_ip * (1 - k) + k;
             _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u, alpha, delta_T, degradation);
 
             local_Jac
                 .template block<displacement_size, displacement_size>(
                     displacement_index, displacement_index)
                 .noalias() +=
-                B.transpose() * ((d_ip*d_ip + k) * C_tensile + C_compressive) * B * w;
+                B.transpose() * ((d_ip*d_ip*(1-k) + k) * C_tensile + C_compressive) * B * w;
 
             typename ShapeMatricesType::template MatrixType<DisplacementDim,
                                                             displacement_size>
@@ -434,7 +434,7 @@ public:
             //
             // displacement equation, temperature part
             //
-            KuT.noalias() += B.transpose() * ((d_ip*d_ip + k) * C_tensile + C_compressive) *
+            KuT.noalias() += B.transpose() * ((d_ip*d_ip*(1-k) + k) * C_tensile + C_compressive) *
                                              alpha * Invariants::identity2 * N * w;
 
             //
@@ -475,7 +475,7 @@ public:
             double const epsm_trace = Invariants::trace(eps_m);
             if (epsm_trace >= 0)
             {
-                KTT.noalias() += dNdx.transpose() * (d_ip*d_ip + 0.03) *
+                KTT.noalias() += dNdx.transpose() * (d_ip*d_ip*(1-0.03) + 0.03) *
                                  lambda * dNdx * w;
                 KTd.noalias() += dNdx.transpose() * 2 * d_ip * lambda *
                                  dNdx * T * N * w;
@@ -621,9 +621,9 @@ private:
 
         for (auto const& ip_data : _ip_data) {
             if (component < 3)  // xx, yy, zz components
-                cache.push_back(ip_data._sigma[component]);
+                cache.push_back(ip_data._sigma_real[component]);
             else    // mixed xy, yz, xz components
-                cache.push_back(ip_data._sigma[component] / std::sqrt(2));
+                cache.push_back(ip_data._sigma_real[component] / std::sqrt(2));
         }
 
         return cache;
