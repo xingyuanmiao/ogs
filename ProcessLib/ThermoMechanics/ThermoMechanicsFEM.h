@@ -107,7 +107,6 @@ struct IntegrationPointData final
         _solid_material.computeConstitutiveRelation(
             t, x_position, dt, _eps_m_prev, _eps_m, _sigma_prev, _sigma, _C,
             *_material_state_variables);
-
     }
 };
 
@@ -309,7 +308,6 @@ public:
 
             auto const& B = _ip_data[ip]._b_matrices;
             auto const& sigma = _ip_data[ip]._sigma;
-            auto const& eps = _ip_data[ip]._eps;
 
             auto const& C = _ip_data[ip]._C;
 
@@ -326,7 +324,6 @@ public:
             double delta_T = T_ip - T0;
             // calculate real density
             double rho_s = rho_sr * (1 - 3 * alpha * delta_T);
-            // calculate thermally induced strain
 
             //
             // displacement equation, displacement part
@@ -367,11 +364,9 @@ public:
             //
             // temperature equation, temperature part;
             //
-
             KTT.noalias() += dNdx.transpose() * lambda * dNdx * w;
 
             DTT.noalias() += N.transpose() * rho_s * c * N * w;
-
         }
         // temperature equation, temperature part
         local_Jac
@@ -387,18 +382,12 @@ public:
 
         local_rhs.template block<temperature_size, 1>(temperature_index, 0)
            .noalias() -= KTT * T + DTT * T_dot;
-
-        // Eigen::EigenSolver<JacobianMatrix> eigensolver(local_Jac);
-        // std::cout << "eigenvalues" << eigensolver.eigenvalues() << "\n";
-
     }
 
     void preTimestepConcrete(std::vector<double> const& local_x,
                              double const /*t*/,
                              double const /*delta_t*/) override
     {
-        // Update damaged region.
-
         unsigned const n_integration_points =
             _integration_method.getNumberOfPoints();
 
