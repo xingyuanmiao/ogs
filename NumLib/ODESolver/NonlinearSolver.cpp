@@ -278,19 +278,21 @@ bool NonlinearSolver<NonlinearSolverTag::Newton>::solve(
                     // LinAlg::copy(x, x_new);  // copy new solution to x
                     _beta -= (1 - damping_factor) / 10;
                     LinAlg::axpy(x_new, -_beta, minus_delta_x);
-                    sys.preIteration(iteration, x);
+                    sys.preIteration(iteration, x_new);
                     sys.assemble(x_new, coupling_term);
                     sys.getResidual(x_new, res);
                     sys.getJacobian(J);
                     sys.applyKnownSolutionsNewton(J, res, minus_delta_x);
                     d2_norm = MathLib::LinAlg::norm(res, MathLib::VecNormType::NORM2);
+
+                    INFO("Damping factor location %g:", -_beta);
+                    INFO("Residual |r|=%.4e:", d2_norm);
+
                     if (d1_norm > d2_norm)
                     {
                         d1_norm = d2_norm;
                         x_storage = x_new;
                         beta_storage = _beta;
-                        INFO("Damping factor location %g:", beta_storage);
-                        INFO("Minimising residual |r|=%.4e:", d1_norm);
                     }
                 }
                 d_norm = d1_norm;

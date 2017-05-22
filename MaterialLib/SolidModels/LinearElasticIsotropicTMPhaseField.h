@@ -69,7 +69,6 @@ public:
 
     bool specialFunction(double const t,
                          ProcessLib::SpatialPosition const& x,
-                         KelvinVector const& eps,
                          KelvinVector const& eps_m,
                          double& strain_energy_tensile,
                          KelvinVector& sigma_tensile,
@@ -86,11 +85,9 @@ public:
 
         // calculation of deviatoric parts
         auto const& P_dev = Invariants::deviatoric_projection;
-        KelvinVector const epsd_curr = P_dev * eps;
         KelvinVector const epsdm_curr = P_dev * eps_m;
 
         // Hydrostatic part for the stress and the tangent.
-        double const eps_curr_trace = Invariants::trace(eps);
         double const epsm_curr_trace = Invariants::trace(eps_m);
 
         auto const& K =

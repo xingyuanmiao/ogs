@@ -1,22 +1,21 @@
 /**
  * \copyright
- * Copyright (c) 2012-2016, OpenGeoSys Community (http://www.opengeosys.org)
+ * Copyright (c) 2012-2017, OpenGeoSys Community (http://www.opengeosys.org)
  *            Distributed under a Modified BSD License.
  *              See accompanying file LICENSE.txt or
  *              http://www.opengeosys.org/project/license
  *
  */
 
-#ifndef PROCESS_LIB_TMPHASEFIELD_FEM_H_
-#define PROCESS_LIB_TMPHASEFIELD_FEM_H_
+#pragma once
 
-#include <iostream>
 #include <memory>
 #include <vector>
 #include <Eigen/Eigenvalues>
 
 #include "MaterialLib/SolidModels/KelvinVector.h"
 #include "MaterialLib/SolidModels/LinearElasticIsotropicTMPhaseField.h"
+#include "MaterialLib/SolidModels/LinearElasticIsotropic.h"
 #include "MathLib/LinAlg/Eigen/EigenMapTools.h"
 #include "NumLib/Extrapolation/ExtrapolatableElement.h"
 #include "NumLib/Fem/FiniteElement/TemplateIsoparametric.h"
@@ -40,10 +39,9 @@ struct IntegrationPointData final
 {
     explicit IntegrationPointData(
         MaterialLib::Solids::MechanicsBase<DisplacementDim>& solid_material)
-        : _solid_material(solid_material),
-          _material_state_variables(
-              _solid_material.createMaterialStateVariables()),
-          history_variable(0), history_variable_prev(0)
+        : solid_material(solid_material),
+          material_state_variables(
+              solid_material.createMaterialStateVariables())
     {
     }
 
@@ -51,55 +49,57 @@ struct IntegrationPointData final
     // The default generated move-ctor is correctly generated for other
     // compilers.
     explicit IntegrationPointData(IntegrationPointData&& other)
-        : _b_matrices(std::move(other._b_matrices)),
-          _sigma(std::move(other._sigma)),
-          _sigma_prev(std::move(other._sigma_prev)),
-          _eps(std::move(other._eps)),
-          _eps_prev(std::move(other._eps_prev)),
-          _eps_m(std::move(other._eps_m)),
-          _eps_m_prev(std::move(other._eps_m_prev)),
-          _solid_material(other._solid_material),
-          _material_state_variables(std::move(other._material_state_variables)),
-          _C(std::move(other._C)),
-          _C_tensile(std::move(other._C_tensile)),
-          _C_compressive(std::move(other._C_compressive)),
+        : b_matrices(std::move(other.b_matrices)),
+          sigma(std::move(other.sigma)),
+          sigma_prev(std::move(other.sigma_prev)),
+          eps(std::move(other.eps)),
+          eps_prev(std::move(other.eps_prev)),
+          eps_m(std::move(other.eps_m)),
+          eps_m_prev(std::move(other.eps_m_prev)),
+          solid_material(other.solid_material),
+          material_state_variables(std::move(other.material_state_variables)),
+          C(std::move(other.C)),
+          C_tensile(std::move(other.C_tensile)),
+          C_compressive(std::move(other.C_compressive)),
           integration_weight(std::move(other.integration_weight)),
           strain_energy_tensile(std::move(other.strain_energy_tensile)),
           history_variable(std::move(other.history_variable)),
           history_variable_prev(std::move(other.history_variable_prev)),
-          _sigma_tensile(std::move(other._sigma_tensile)),
-          _sigma_compressive(std::move(other._sigma_compressive)),
-          _simga_real(std::move(other._sigma_real))
+          sigma_tensile(std::move(other.sigma_tensile)),
+          sigma_compressive(std::move(other.sigma_compressive)),
+          sigma_real(std::move(other.sigma_real)),
+          sigma_real_prev(std::move(other.sigma_real_prev))
     {
     }
 #endif  // _MSC_VER
 
-    typename ShapeMatrixType::NodalRowVectorType _N;
-    typename ShapeMatrixType::GlobalDimNodalMatrixType _dNdx;
-    typename BMatricesType::BMatrixType _b_matrices;
-    typename BMatricesType::KelvinVectorType _sigma, _sigma_prev;
-    typename BMatricesType::KelvinVectorType _eps, _eps_prev;
-    typename BMatricesType::KelvinVectorType _eps_m, _eps_m_prev;
+    typename ShapeMatrixType::NodalRowVectorType N;
+    typename ShapeMatrixType::GlobalDimNodalMatrixType dNdx;
+    typename BMatricesType::BMatrixType b_matrices;
+    typename BMatricesType::KelvinVectorType sigma, sigma_prev;
+    typename BMatricesType::KelvinVectorType eps, eps_prev;
+    typename BMatricesType::KelvinVectorType eps_m, eps_m_prev;
 
-    typename BMatricesType::KelvinVectorType _sigma_tensile, _sigma_compressive, _sigma_real_prev, _sigma_real;
+    typename BMatricesType::KelvinVectorType sigma_tensile, sigma_compressive,
+        sigma_real_prev, sigma_real;
     double strain_energy_tensile;
 
-    MaterialLib::Solids::MechanicsBase<DisplacementDim>& _solid_material;
+    MaterialLib::Solids::MechanicsBase<DisplacementDim>& solid_material;
     std::unique_ptr<typename MaterialLib::Solids::MechanicsBase<
-        DisplacementDim>::MaterialStateVariables>
-        _material_state_variables;
+        DisplacementDim>::MaterialStateVariables> material_state_variables;
 
-    typename BMatricesType::KelvinMatrixType _C, _C_tensile, _C_compressive;
+    typename BMatricesType::KelvinMatrixType C, C_tensile, C_compressive;
     double integration_weight;
-    double history_variable, history_variable_prev;
+    double history_variable;
+    double history_variable_prev;
 
     void pushBackState()
     {
-        _eps_m_prev = _eps_m;
-        _eps_prev = _eps;
-        _sigma_prev = _sigma;
-        _sigma_real_prev = _sigma_real;
-        _material_state_variables->pushBackState();
+        eps_m_prev = eps_m;
+        eps_prev = eps;
+        sigma_prev = sigma;
+        sigma_real_prev = sigma_real;
+        material_state_variables->pushBackState();
     }
 
     static const int kelvin_vector_size =
@@ -117,18 +117,18 @@ struct IntegrationPointData final
         double const delta_T,
         double const degradation)
     {
-        _eps.noalias() = _b_matrices * u;
-        _eps_m.noalias() = _eps - alpha * delta_T * Invariants::identity2;
-        _solid_material.computeConstitutiveRelation(
-            t, x_position, dt, _eps_m_prev, _eps_m, _sigma_prev, _sigma, _C,
-            *_material_state_variables);
+        eps.noalias() = b_matrices * u;
+        eps_m.noalias() = eps - alpha * delta_T * Invariants::identity2;
+        solid_material.computeConstitutiveRelation(
+            t, x_position, dt, eps_m_prev, eps_m, sigma_prev, sigma, C,
+            *material_state_variables);
 
         static_cast<MaterialLib::Solids::TMPhaseFieldExtension<DisplacementDim>&>(
-            _solid_material)
-            .specialFunction(t, x_position, _eps, _eps_m,
-                             strain_energy_tensile, _sigma_tensile,
-                             _sigma_compressive, _C_tensile, _C_compressive,
-                             _sigma_real, degradation);
+            solid_material)
+            .specialFunction(t, x_position, eps_m,
+                             strain_energy_tensile, sigma_tensile,
+                             sigma_compressive, C_tensile, C_compressive,
+                             sigma_real, degradation);
     }
 };
 
@@ -191,12 +191,9 @@ public:
 
     // Types for displacement.
     // (Higher order elements = ShapeFunction).
-    using NodalMatrixType = typename ShapeMatricesType::NodalMatrixType;
-    using NodalVectorType = typename ShapeMatricesType::NodalVectorType;
     using ShapeMatrices = typename ShapeMatricesType::ShapeMatrices;
     using BMatricesType = BMatrixPolicyType<ShapeFunction, DisplacementDim>;
 
-    using BMatrixType = typename BMatricesType::BMatrixType;
     using NodalForceVectorType = typename BMatricesType::NodalForceVectorType;
     using RhsVector = typename ShapeMatricesType::template VectorType<
         ShapeFunction::NPOINTS + ShapeFunction::NPOINTS * DisplacementDim>;
@@ -228,43 +225,49 @@ public:
                               IntegrationMethod, DisplacementDim>(
                 e, is_axially_symmetric, _integration_method);
 
+        SpatialPosition x_position;
+        x_position.setElementID(_element.getID());
+
         for (unsigned ip = 0; ip < n_integration_points; ip++)
         {
             // displacement (subscript u)
             _ip_data.emplace_back(*_process_data.material);
             auto& ip_data = _ip_data[ip];
-            _ip_data[ip].integration_weight =
+            ip_data.integration_weight =
                 _integration_method.getWeightedPoint(ip).getWeight() *
                 shape_matrices[ip].detJ;
-            ip_data._b_matrices.resize(
-                kelvin_vector_size, ShapeFunction::NPOINTS * DisplacementDim);
+            ip_data.b_matrices.resize(kelvin_vector_size,
+                                      ShapeFunction::NPOINTS * DisplacementDim);
 
             auto const x_coord =
                 interpolateXCoordinate<ShapeFunction, ShapeMatricesType>(
                     e, shape_matrices[ip].N);
             LinearBMatrix::computeBMatrix<DisplacementDim,
                                           ShapeFunction::NPOINTS>(
-                shape_matrices[ip].dNdx, ip_data._b_matrices,
+                shape_matrices[ip].dNdx, ip_data.b_matrices,
                 is_axially_symmetric, shape_matrices[ip].N, x_coord);
 
-            ip_data._sigma.resize(kelvin_vector_size);
-            ip_data._sigma_prev.resize(kelvin_vector_size);
-            ip_data._eps.resize(kelvin_vector_size);
-            ip_data._eps_prev.resize(kelvin_vector_size);
-            ip_data._eps_m.resize(kelvin_vector_size);
-            ip_data._eps_m_prev.resize(kelvin_vector_size);
-            ip_data._C.resize(kelvin_vector_size, kelvin_vector_size);
-            ip_data._C_tensile.resize(kelvin_vector_size, kelvin_vector_size);
-            ip_data._C_compressive.resize(kelvin_vector_size, kelvin_vector_size);
-            ip_data._sigma_tensile.resize(kelvin_vector_size);
-            ip_data._sigma_compressive.resize(kelvin_vector_size);
-            _ip_data[ip].strain_energy_tensile;
-            _ip_data[ip].history_variable;
-            _ip_data[ip].history_variable_prev;
-            ip_data._sigma_real.resize(kelvin_vector_size);
+            ip_data.sigma.resize(kelvin_vector_size);
+            ip_data.sigma_prev.resize(kelvin_vector_size);
+            ip_data.eps.resize(kelvin_vector_size);
+            ip_data.eps_prev.resize(kelvin_vector_size);
+            ip_data.eps_m.resize(kelvin_vector_size);
+            ip_data.eps_m_prev.resize(kelvin_vector_size);
+            ip_data.C.resize(kelvin_vector_size, kelvin_vector_size);
+            ip_data.C_tensile.resize(kelvin_vector_size, kelvin_vector_size);
+            ip_data.C_compressive.resize(kelvin_vector_size,
+                                         kelvin_vector_size);
+            ip_data.sigma_tensile.resize(kelvin_vector_size);
+            ip_data.sigma_compressive.resize(kelvin_vector_size);
+            ip_data.strain_energy_tensile;
+            ip_data.history_variable =
+                process_data.history_field(0, x_position)[0];
+            ip_data.history_variable_prev =
+                process_data.history_field(0, x_position)[0];
+            ip_data.sigma_real.resize(kelvin_vector_size);
 
-            ip_data._N = shape_matrices[ip].N;
-            ip_data._dNdx = shape_matrices[ip].dNdx;
+            ip_data.N = shape_matrices[ip].N;
+            ip_data.dNdx = shape_matrices[ip].dNdx;
 
             _secondary_data.N[ip] = shape_matrices[ip].N;
         }
@@ -367,24 +370,24 @@ public:
             x_position.setIntegrationPoint(ip);
             auto const& w = _ip_data[ip].integration_weight;
 
-            auto const& dNdx = _ip_data[ip]._dNdx;
-            auto const& N = _ip_data[ip]._N;
+            auto const& dNdx = _ip_data[ip].dNdx;
+            auto const& N = _ip_data[ip].N;
 
-            auto const& B = _ip_data[ip]._b_matrices;
-            auto const& sigma = _ip_data[ip]._sigma;
-            auto const& eps = _ip_data[ip]._eps;
-            auto const& eps_m = _ip_data[ip]._eps_m;
+            auto const& B = _ip_data[ip].b_matrices;
 
-            auto const& C = _ip_data[ip]._C;
-            auto const& C_tensile = _ip_data[ip]._C_tensile;
-            auto const& C_compressive = _ip_data[ip]._C_compressive;
+            auto const& eps_m = _ip_data[ip].eps_m;
 
-            auto const& strain_energy_tensile = _ip_data[ip].strain_energy_tensile;
-            auto const& sigma_tensile = _ip_data[ip]._sigma_tensile;
-            auto const& sigma_compressive = _ip_data[ip]._sigma_compressive;
+            auto const& C_tensile = _ip_data[ip].C_tensile;
+            auto const& C_compressive = _ip_data[ip].C_compressive;
+
+            auto const& strain_energy_tensile =
+                _ip_data[ip].strain_energy_tensile;
+            auto const& sigma_tensile = _ip_data[ip].sigma_tensile;
+
             auto& history_variable = _ip_data[ip].history_variable;
             auto& history_variable_prev = _ip_data[ip].history_variable_prev;
-            auto const& sigma_real = _ip_data[ip]._sigma_real;
+
+            auto const& sigma_real = _ip_data[ip].sigma_real;
 
             // auto const [&](member){ return _process_data.member(t,
             // x_position); };
@@ -399,14 +402,14 @@ public:
             double const T0 = _process_data.reference_temperature;
             auto const& b = _process_data.specific_body_force;
 
-            double T_ip = N.dot(T);
-            double delta_T = T_ip - T0;
+            double const T_ip = N.dot(T);
+            double const delta_T = T_ip - T0;
             // calculate real density
-            double rho_s = rho_sr * (1 - 3 * alpha * delta_T);
+            double const rho_s = rho_sr * (1 - 3 * alpha * delta_T);
             // calculate thermally induced strain
 
             // Kdd_1 defines one term which both used in Kdd and local_rhs for phase field
-            // typename ShapeMatricesType::NodalMatrixType const Kdd_1 = dNdx.transpose() * 2 * gc * ls * dNdx;
+            typename ShapeMatricesType::NodalMatrixType const Kdd_1 = dNdx.transpose() * 2 * gc * ls * dNdx;
 
             //
             // displacement equation, displacement part
@@ -419,7 +422,7 @@ public:
                 .template block<displacement_size, displacement_size>(
                     displacement_index, displacement_index)
                 .noalias() +=
-                B.transpose() * ((d_ip*d_ip*(1-k) + k) * C_tensile + C_compressive) * B * w;
+                B.transpose() * (degradation * C_tensile + C_compressive) * B * w;
 
             typename ShapeMatricesType::template MatrixType<DisplacementDim,
                                                             displacement_size>
@@ -439,20 +442,17 @@ public:
             local_rhs
                 .template block<displacement_size, 1>(displacement_index, 0)
                 .noalias() -=
-                (B.transpose() * (sigma_real /*+
-                 ((d_ip*d_ip + k) * C_tensile + C_compressive) *
-                alpha * delta_T * Invariants::identity2*/)
-                - N_u.transpose() * rho_s * b) * w;
+                (B.transpose() * sigma_real - N_u.transpose() * rho_s * b) * w;
             /*local_rhs
                 .template block<displacement_size, 1>(displacement_index, 0)
                 .noalias() -=
-                B.transpose() * ((d_ip*d_ip + k) * C_tensile + C_compressive) *
+                B.transpose() * (degradation * C_tensile + C_compressive) *
                 alpha * T0 * Invariants::identity2 * w;*/
 
             //
             // displacement equation, temperature part
             //
-            KuT.noalias() += B.transpose() * ((d_ip*d_ip*(1-k) + k) * C_tensile + C_compressive) *
+            KuT.noalias() += B.transpose() * (degradation * C_tensile + C_compressive) *
                                              alpha * Invariants::identity2 * N * w;
 
             //
@@ -462,9 +462,9 @@ public:
 
             if (history_variable_prev < strain_energy_tensile)
             {
-                history_variable = strain_energy_tensile;
                 // INFO("History variable %g:", history_variable);
                 // INFO("History variable previous %g:", history_variable_prev);
+                history_variable = strain_energy_tensile;
                 Kdu.noalias() = Kud.transpose();
                 KdT.noalias() += N.transpose() * 2 * d_ip * sigma_tensile.transpose() *
                         alpha * Invariants::identity2 * N * w;
@@ -478,7 +478,7 @@ public:
             // phasefield equation, phasefield part
             //
 
-            Kdd.noalias() += (dNdx.transpose() * 2 * gc * ls * dNdx +
+            Kdd.noalias() += (Kdd_1 +
                               N.transpose() * 2 * history_variable * N +
                               N.transpose() * 0.5 * gc / ls * N) *
                              w;
@@ -510,7 +510,7 @@ public:
             local_rhs.template block<phasefield_size, 1>(phasefield_index, 0)
                .noalias() -=
                (N.transpose() * d_dot_ip / M +
-                dNdx.transpose() * 2 * gc * ls * dNdx * d +
+                Kdd_1 * d +
                 N.transpose() * d_ip * 2 * history_variable -
                 N.transpose() * 0.5 * gc / ls * (1 - d_ip)) *
                w;
@@ -566,7 +566,7 @@ public:
 
     }
 
-    void preTimestepConcrete(std::vector<double> const& local_x,
+    void preTimestepConcrete(std::vector<double> const& /*local_x*/,
                              double const /*t*/,
                              double const /*delta_t*/) override
     {
@@ -576,9 +576,11 @@ public:
         for (unsigned ip = 0; ip < n_integration_points; ip++)
         {
             _ip_data[ip].pushBackState();
-            if (_ip_data[ip].history_variable_prev < _ip_data[ip].history_variable)
+            if (_ip_data[ip].history_variable_prev <
+                _ip_data[ip].history_variable)
             {
-                _ip_data[ip].history_variable_prev = _ip_data[ip].history_variable;
+                _ip_data[ip].history_variable_prev =
+                    _ip_data[ip].history_variable;
             }
         }
     }
@@ -675,15 +677,17 @@ private:
         cache.clear();
         cache.reserve(_ip_data.size());
 
-        for (auto const& ip_data : _ip_data) {
+        for (auto const& ip_data : _ip_data)
+        {
             if (component < 3)  // xx, yy, zz components
-                cache.push_back(ip_data._sigma_real[component]);
-            else    // mixed xy, yz, xz components
-                cache.push_back(ip_data._sigma_real[component] / std::sqrt(2));
+                cache.push_back(ip_data.sigma_real[component]);
+            else  // mixed xy, yz, xz components
+                cache.push_back(ip_data.sigma_real[component] / std::sqrt(2));
         }
 
         return cache;
     }
+
     std::vector<double> const& getIntPtEpsilon(
         std::vector<double>& cache, std::size_t const component) const
     {
@@ -692,7 +696,7 @@ private:
 
         for (auto const& ip_data : _ip_data)
         {
-            cache.push_back(ip_data._eps[component]);
+            cache.push_back(ip_data.eps[component]);
         }
 
         return cache;
@@ -700,17 +704,12 @@ private:
 
     TMPhaseFieldProcessData<DisplacementDim>& _process_data;
 
-    std::vector<
-        IntegrationPointData<BMatricesType, ShapeMatricesType, DisplacementDim>>
-        _ip_data;
+    std::vector<IntegrationPointData<BMatricesType, ShapeMatricesType,
+                                     DisplacementDim>> _ip_data;
 
     IntegrationMethod _integration_method;
     MeshLib::Element const& _element;
     SecondaryData<typename ShapeMatrices::ShapeType> _secondary_data;
-
-    /// CR_{l-1} := { x \in \Omega s.t. d < CRTOL }. Damaged region indicator.
-    /// true means "is damaged". Updated after a timestep.
-    bool damaged_region;
 
     static const int temperature_index = 0;
     static const int temperature_size = ShapeFunction::NPOINTS;
@@ -748,5 +747,3 @@ public:
 
 }  // namespace TMPhaseField
 }  // namespace ProcessLib
-
-#endif  // PROCESS_LIB_TMPHASEFIELD_FEM_H_

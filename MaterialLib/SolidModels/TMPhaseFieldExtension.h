@@ -26,7 +26,6 @@ struct TMPhaseFieldExtension : public MechanicsBase<DisplacementDim>
     using KelvinMatrix = ProcessLib::KelvinMatrixType<DisplacementDim>;
     virtual bool specialFunction(double const t,
                                  ProcessLib::SpatialPosition const& x,
-                                 KelvinVector const& eps,
                                  KelvinVector const& eps_m,
                                  double& strain_energy_tensile,
                                  KelvinVector& sigma_tensile,
@@ -41,7 +40,6 @@ struct TMPhaseFieldExtension : public MechanicsBase<DisplacementDim>
     bool specialFunction(
         double const t,
         ProcessLib::SpatialPosition const& x,
-        Eigen::Matrix<double, Eigen::Dynamic, 1> const& eps,
         Eigen::Matrix<double, Eigen::Dynamic, 1> const& eps_m,
         double& strain_energy_tensile,
         Eigen::Matrix<double, Eigen::Dynamic, 1>& sigma_tensile,
@@ -58,7 +56,6 @@ struct TMPhaseFieldExtension : public MechanicsBase<DisplacementDim>
         // cannot be virtual. Maybe there is a workaround for this.  Using
         // Map<Matrix<double, ...>> makes the interface (for the material model
         // implementation) unnecessary difficult.
-        KelvinVector const eps_{eps};
         KelvinVector const eps_m_{eps_m};
         KelvinVector sigma_tensile_{sigma_tensile};
         KelvinVector sigma_compressive_{sigma_compressive};
@@ -68,7 +65,6 @@ struct TMPhaseFieldExtension : public MechanicsBase<DisplacementDim>
 
         bool const result = specialFunction(t,
                                             x,
-                                            eps_,
                                             eps_m_,
                                             strain_energy_tensile,
                                             sigma_tensile_,
