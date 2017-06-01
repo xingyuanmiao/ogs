@@ -34,6 +34,7 @@ struct TMPhaseFieldProcessData
         Parameter<double> const& linear_thermal_expansion_coefficient_,
         Parameter<double> const& specific_heat_capacity_,
         Parameter<double> const& thermal_conductivity_,
+        Parameter<double> const& residual_thermal_conductivity_,
         double const reference_temperature_,
         Eigen::Matrix<double, DisplacementDim, 1> const& specific_body_force_)
         : material{std::move(material_)},
@@ -46,6 +47,7 @@ struct TMPhaseFieldProcessData
           linear_thermal_expansion_coefficient(linear_thermal_expansion_coefficient_),
           specific_heat_capacity(specific_heat_capacity_),
           thermal_conductivity(thermal_conductivity_),
+          residual_thermal_conductivity(residual_thermal_conductivity_),
           reference_temperature(reference_temperature_),
           specific_body_force(specific_body_force_)
     {
@@ -62,6 +64,7 @@ struct TMPhaseFieldProcessData
           linear_thermal_expansion_coefficient(other.linear_thermal_expansion_coefficient),
           specific_heat_capacity(other.specific_heat_capacity),
           thermal_conductivity(other.thermal_conductivity),
+          residual_thermal_conductivity(other.residual_thermal_conductivity),
           reference_temperature(other.reference_temperature),
           specific_body_force(other.specific_body_force),
           dt(other.dt),
@@ -89,6 +92,7 @@ struct TMPhaseFieldProcessData
     Parameter<double> const& linear_thermal_expansion_coefficient;
     Parameter<double> const& specific_heat_capacity;
     Parameter<double> const& thermal_conductivity;
+    Parameter<double> const& residual_thermal_conductivity;
     double const reference_temperature;
     Eigen::Matrix<double, DisplacementDim, 1> const specific_body_force;
     double dt;

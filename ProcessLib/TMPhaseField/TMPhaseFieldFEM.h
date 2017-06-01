@@ -235,7 +235,7 @@ public:
             auto& ip_data = _ip_data[ip];
             ip_data.integration_weight =
                 _integration_method.getWeightedPoint(ip).getWeight() *
-                shape_matrices[ip].detJ;
+                shape_matrices[ip].integralMeasure * shape_matrices[ip].detJ;
             ip_data.b_matrices.resize(kelvin_vector_size,
                                       ShapeFunction::NPOINTS * DisplacementDim);
 
@@ -399,6 +399,7 @@ public:
             auto const alpha = _process_data.linear_thermal_expansion_coefficient(t, x_position)[0];
             double const c = _process_data.specific_heat_capacity(t, x_position)[0];
             auto const lambda = _process_data.thermal_conductivity(t, x_position)[0];
+            auto const lambda_res = _process_data.residual_thermal_conductivity(t, x_position)[0];
             double const T0 = _process_data.reference_temperature;
             auto const& b = _process_data.specific_body_force;
 
@@ -490,10 +491,11 @@ public:
             // temperature equation, phasefield part;
             // phasefield equation, temperature part
             //
+
             double const epsm_trace = Invariants::trace(eps_m);
             if (epsm_trace >= 0)
             {
-                KTT.noalias() += dNdx.transpose() * (d_ip*d_ip*(1-0.03) + 0.03) *
+                KTT.noalias() += dNdx.transpose() * (d_ip*d_ip*(1-lambda_res) + lambda_res) *
                                  lambda * dNdx * w;
                 KTd.noalias() += dNdx.transpose() * 2 * d_ip * lambda *
                                  dNdx * T * N * w;

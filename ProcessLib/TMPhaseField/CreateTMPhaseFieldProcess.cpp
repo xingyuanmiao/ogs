@@ -190,6 +190,13 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
         "thermal_conductivity", parameters, 1);
     DBUG("Use \'%s\' as thermal conductivity parameter.",
         thermal_conductivity.name.c_str());
+    // Residual thermal conductivity
+    auto& residual_thermal_conductivity = findParameter<double>(
+        config,
+        //! \ogs_file_param_special{process__TMPHASE_FIELD_residual_thermal_conductivity}
+        "residual_thermal_conductivity", parameters, 1);
+    DBUG("Use \'%s\' as residual thermal conductivity parameter.",
+        residual_thermal_conductivity.name.c_str());
     // Reference temperature
     const double reference_temperature =
         //! \ogs_file_param_special{process__TMPHASE_FIELD_reference_temperature}
@@ -216,7 +223,7 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
         std::move(material), residual_stiffness, crack_resistance,
         crack_length_scale, kinetic_coefficient, solid_density,
         history_field, linear_thermal_expansion_coefficient, specific_heat_capacity,
-        thermal_conductivity, reference_temperature,
+        thermal_conductivity, residual_thermal_conductivity, reference_temperature,
         specific_body_force};
 
     SecondaryVariableCollection secondary_variables;
