@@ -444,11 +444,6 @@ public:
                 .template block<displacement_size, 1>(displacement_index, 0)
                 .noalias() -=
                 (B.transpose() * sigma_real - N_u.transpose() * rho_s * b) * w;
-            /*local_rhs
-                .template block<displacement_size, 1>(displacement_index, 0)
-                .noalias() -=
-                B.transpose() * (degradation * C_tensile + C_compressive) *
-                alpha * T0 * Invariants::identity2 * w;*/
 
             //
             // displacement equation, temperature part
@@ -466,7 +461,7 @@ public:
                 // INFO("History variable %g:", history_variable);
                 // INFO("History variable previous %g:", history_variable_prev);
                 history_variable = strain_energy_tensile;
-                Kdu.noalias() = Kud.transpose();
+                Kdu.noalias() += N.transpose() * 2 * d_ip * sigma_tensile.transpose() * B * w;
                 KdT.noalias() += N.transpose() * 2 * d_ip * sigma_tensile.transpose() *
                         alpha * Invariants::identity2 * N * w;
             }
