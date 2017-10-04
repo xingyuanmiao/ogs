@@ -415,15 +415,19 @@ public:
             //
             // displacement equation, displacement part
             //
+            auto const d_prev = d - d_dot*dt;
+
             double const d_ip = N.dot(d);
+            double const d_ip_prev = N.dot(d_prev);
             double const degradation = d_ip * d_ip * (1 - k) + k;
-            _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u, alpha, delta_T, degradation);
+            double const degradation_prev = d_ip_prev * d_ip_prev * (1 - k) + k;
+            _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u, alpha, delta_T, degradation_prev);
 
             local_Jac
                 .template block<displacement_size, displacement_size>(
                     displacement_index, displacement_index)
                 .noalias() +=
-                B.transpose() * (degradation * C_tensile + C_compressive) * B * w;
+                B.transpose() * (degradation_prev * C_tensile + C_compressive) * B * w;
 
             typename ShapeMatricesType::template MatrixType<DisplacementDim,
                                                             displacement_size>
@@ -448,13 +452,13 @@ public:
             //
             // displacement equation, temperature part
             //
-            KuT.noalias() += B.transpose() * (degradation * C_tensile + C_compressive) *
+            KuT.noalias() += B.transpose() * (degradation_prev * C_tensile + C_compressive) *
                                              alpha * Invariants::identity2 * N * w;
 
             //
             // displacement equation, phasefield part
             //
-            Kud.noalias() += B.transpose() * 2 * d_ip * sigma_tensile * N * w;
+            //Kud.noalias() += B.transpose() * 2 * d_ip * sigma_tensile * N * w;
 
             if (history_variable_prev < strain_energy_tensile)
             {
