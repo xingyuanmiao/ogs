@@ -170,7 +170,7 @@ void Output::doOutputAlways(Process const& process,
 
     // Need to add variables of process to vtu even no output takes place.
     processOutputData(t, x, process.getMesh(), process.getDOFTable(),
-                      process.getProcessVariables(),
+                      process.getProcessVariables(process_id),
                       process.getSecondaryVariables(), process_output);
 
     // For the staggered scheme for the coupling, only the last process, which
@@ -247,7 +247,8 @@ void Output::doOutputNonlinearIteration(Process const& process,
     time_output.start();
 
     processOutputData(t, x, process.getMesh(),
-                      process.getDOFTable(), process.getProcessVariables(),
+                      process.getDOFTable(),
+                      process.getProcessVariables(process_id),
                       process.getSecondaryVariables(), process_output);
 
     // For the staggered scheme for the coupling, only the last process, which
