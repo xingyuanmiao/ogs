@@ -104,7 +104,7 @@ void Process::initialize()
     initializeBoundaryConditions();
 }
 
-void Process::setInitialConditions(const unsigned processs_id, double const t,
+void Process::setInitialConditions(const int processs_id, double const t,
                                    GlobalVector& x)
 {
     // getDOFTableOfProcess can be overloaded by the specific process.
@@ -343,10 +343,10 @@ void Process::preTimestep(GlobalVector const& x, const double t,
     preTimestepConcreteProcess(x, t, delta_t, process_id);
 }
 
-void Process::postTimestep(GlobalVector const& x)
+void Process::postTimestep(GlobalVector const& x, int const processs_id)
 {
     MathLib::LinAlg::setLocalAccessibleVector(x);
-    postTimestepConcreteProcess(x);
+    postTimestepConcreteProcess(x, processs_id);
 }
 
 void Process::computeSecondaryVariable(const double t, GlobalVector const& x)
