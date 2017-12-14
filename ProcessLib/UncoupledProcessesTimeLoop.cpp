@@ -332,16 +332,29 @@ std::unique_ptr<UncoupledProcessesTimeLoop> createUncoupledProcessesTimeLoop(
         //! \ogs_file_param{prj__time_loop__global_process_coupling}
         = config.getConfigSubtreeOptional("global_process_coupling");
 
-    std::unique_ptr<NumLib::ConvergenceCriterion> coupling_conv_crit = nullptr;
+    std::vector<std::unique_ptr<NumLib::ConvergenceCriterion>>
+        _global_coupling_conv_criteria;
     unsigned max_coupling_iterations = 1;
     if (coupling_config)
     {
         max_coupling_iterations
             //! \ogs_file_param{prj__time_loop__global_process_coupling__max_iter}
             = coupling_config->getConfigParameter<unsigned>("max_iter");
-        coupling_conv_crit = NumLib::createConvergenceCriterion(
-            //! \ogs_file_param{prj__time_loop__global_process_coupling__convergence_criterion}
-            coupling_config->getConfigSubtree("convergence_criterion"));
+
+        auto const& coupling_convergence_criteria_config =
+            //! \ogs_file_param{prj__time_loop__global_process_coupling__convergence_criteria}
+            coupling_config->getConfigSubtree("convergence_criteria");
+
+        for (
+            auto coupling_convergence_criterion_config :
+            //! \ogs_file_param{prj__time_loop__global_process_coupling__convergence_criteria__convergence_criterion}
+            coupling_convergence_criteria_config.getConfigSubtreeList(
+                "convergence_criterion"))
+        {
+            _global_coupling_conv_criteria.push_back(
+                NumLib::createConvergenceCriterion(
+                    coupling_convergence_criterion_config));
+        }
     }
 
     auto output =
@@ -368,7 +381,7 @@ std::unique_ptr<UncoupledProcessesTimeLoop> createUncoupledProcessesTimeLoop(
 
     return std::make_unique<UncoupledProcessesTimeLoop>(
         std::move(output), std::move(per_process_data), max_coupling_iterations,
-        std::move(coupling_conv_crit), start_time, end_time);
+        std::move(_global_coupling_conv_criteria), start_time, end_time);
 }
 
 std::vector<GlobalVector*> setInitialConditions(
@@ -416,9 +429,9 @@ std::vector<GlobalVector*> setInitialConditions(
     return process_solutions;
 }
 
-bool solveOneTimeStepOneProcess(const unsigned process_index,
-                                GlobalVector& x, std::size_t const timestep,
-                                double const t, double const delta_t,
+bool solveOneTimeStepOneProcess(const unsigned process_index, GlobalVector& x,
+                                std::size_t const timestep, double const t,
+                                double const delta_t,
                                 SingleProcessData const& process_data,
                                 Output& output_control)
 {
@@ -442,9 +455,9 @@ bool solveOneTimeStepOneProcess(const unsigned process_index,
 
     auto const post_iteration_callback = [&](unsigned iteration,
                                              GlobalVector const& x) {
-        output_control.doOutputNonlinearIteration(
-            process, process_index, process_data.process_output, timestep, t,
-            x, iteration);
+        output_control.doOutputNonlinearIteration(process, process_index,
+                                                  process_data.process_output,
+                                                  timestep, t, x, iteration);
     };
 
     bool nonlinear_solver_succeeded =
@@ -457,7 +470,8 @@ UncoupledProcessesTimeLoop::UncoupledProcessesTimeLoop(
     std::unique_ptr<Output>&& output,
     std::vector<std::unique_ptr<SingleProcessData>>&& per_process_data,
     const unsigned global_coupling_max_iterations,
-    std::unique_ptr<NumLib::ConvergenceCriterion>&& global_coupling_conv_crit,
+    std::vector<std::unique_ptr<NumLib::ConvergenceCriterion>>&&
+        global_coupling_conv_crit,
     const double start_time, const double end_time)
     : _output(std::move(output)),
       _per_process_data(std::move(per_process_data)),
@@ -807,8 +821,8 @@ bool UncoupledProcessesTimeLoop::solveUncoupledEquationSystems(
         auto& pcs = spd->process;
         pcs.preTimestep(x, t, dt, pcs_idx);
 
-        const auto nonlinear_solver_succeeded =
-            solveOneTimeStepOneProcess(pcs_idx, x, timestep_id, t, dt, *spd, *_output);
+        const auto nonlinear_solver_succeeded = solveOneTimeStepOneProcess(
+            pcs_idx, x, timestep_id, t, dt, *spd, *_output);
         spd->nonlinear_solver_converged = nonlinear_solver_succeeded;
         pcs.postTimestep(x, pcs_idx);
         pcs.computeSecondaryVariable(t, x);
@@ -823,8 +837,8 @@ bool UncoupledProcessesTimeLoop::solveUncoupledEquationSystems(
                 timestep_id, t, pcs_idx);
 
             // save unsuccessful solution
-            _output->doOutputAlways(pcs, pcs_idx, spd->process_output, timestep_id, t,
-                                    x);
+            _output->doOutputAlways(pcs, pcs_idx, spd->process_output,
+                                    timestep_id, t, x);
 
             if (!spd->timestepper->isSolutionErrorComputationNeeded())
             {
@@ -849,12 +863,22 @@ bool UncoupledProcessesTimeLoop::solveCoupledEquationSystemsByStaggeredScheme(
     if (_global_coupling_max_iterations != 0)
     {
         // Set the flag of the first iteration be true.
-        _global_coupling_conv_crit->preFirstIteration();
+        for (auto& conv_crit : _global_coupling_conv_crit)
+        {
+            conv_crit->preFirstIteration();
+        }
     }
+    auto resetCouplingConvergenceCtiteria = [&]() {
+        for (auto& conv_crit : _global_coupling_conv_crit)
+        {
+            conv_crit->reset();
+        }
+    };
+
     bool coupling_iteration_converged = true;
     for (unsigned global_coupling_iteration = 0;
          global_coupling_iteration < _global_coupling_max_iterations;
-         global_coupling_iteration++, _global_coupling_conv_crit->reset())
+         global_coupling_iteration++, resetCouplingConvergenceCtiteria())
     {
         // TODO(wenqing): use process name
         bool nonlinear_solver_succeeded = true;
@@ -907,8 +931,7 @@ bool UncoupledProcessesTimeLoop::solveCoupledEquationSystemsByStaggeredScheme(
 
                 // save unsuccessful solution
                 _output->doOutputAlways(spd->process, pcs_idx,
-                                        spd->process_output,
-                                        timestep_id, t, x);
+                                        spd->process_output, timestep_id, t, x);
 
                 if (!spd->timestepper->isSolutionErrorComputationNeeded())
                 {
@@ -920,15 +943,17 @@ bool UncoupledProcessesTimeLoop::solveCoupledEquationSystemsByStaggeredScheme(
 
             // Check the convergence of the coupling iteration
             auto& x_old = *_solutions_of_last_cpl_iteration[pcs_idx];
-            MathLib::LinAlg::axpy(x_old, -1.0, x);
-            _global_coupling_conv_crit->checkResidual(x_old);
-            coupling_iteration_converged =
-                coupling_iteration_converged &&
-                _global_coupling_conv_crit->isSatisfied();
-
+            if (global_coupling_iteration > 0)
+            {
+                MathLib::LinAlg::axpy(x_old, -1.0, x); // save dx to x_old
+                _global_coupling_conv_crit[pcs_idx]->checkDeltaX(x_old, x);
+                coupling_iteration_converged =
+                    coupling_iteration_converged &&
+                    _global_coupling_conv_crit[pcs_idx]->isSatisfied();
+            }
             MathLib::LinAlg::copy(x, x_old);
 
-            if (coupling_iteration_converged)
+            if (coupling_iteration_converged && global_coupling_iteration > 0)
             {
                 break;
             }
@@ -936,7 +961,7 @@ bool UncoupledProcessesTimeLoop::solveCoupledEquationSystemsByStaggeredScheme(
             ++pcs_idx;
         }  // end of for (auto& spd : _per_process_data)
 
-        if (coupling_iteration_converged)
+        if (coupling_iteration_converged && global_coupling_iteration > 0)
         {
             break;
         }
@@ -1014,9 +1039,8 @@ void UncoupledProcessesTimeLoop::outputSolutions(
             spd->process.setCoupledSolutionsForStaggeredScheme(
                 &coupled_solutions);
             spd->process.setCoupledTermForTheStaggeredSchemeToLocalAssemblers();
-            (output_object.*output_class_member)(pcs, pcs_idx,
-                                                 spd->process_output,
-                                                 timestep, t, x);
+            (output_object.*output_class_member)(
+                pcs, pcs_idx, spd->process_output, timestep, t, x);
         }
         else
         {
