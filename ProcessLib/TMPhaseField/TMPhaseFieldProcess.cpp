@@ -7,7 +7,7 @@
  *
  */
 
-#include "TMPhaseFieldProcess-fwd.h"
+#include "TMPhaseFieldProcess-impl.h"
 #include "TMPhaseFieldProcess.h"
 
 namespace ProcessLib

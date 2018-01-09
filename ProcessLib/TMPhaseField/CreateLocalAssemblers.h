@@ -6,8 +6,7 @@
  *              http://www.opengeosys.org/project/license
  */
 
-#ifndef PROCESSLIB_TMPHASEFIELD_CREATE_LOCAL_ASSEMBLERS_H_
-#define PROCESSLIB_TMPHASEFIELD_CREATE_LOCAL_ASSEMBLERS_H_
+#pragma once
 
 #include <vector>
 
@@ -74,30 +73,30 @@ void createLocalAssemblers(
     std::vector<std::unique_ptr<LocalAssemblerInterface>>& local_assemblers,
     ExtraCtorArgs&&... extra_ctor_args)
 {
-    DBUG("Create local assemblers.");
+//    DBUG("Create local assemblers.");
 
-    switch (dimension)
-    {
-        case 2:
-            detail::createLocalAssemblers<2, DisplacementDim,
-                                          LocalAssemblerImplementation>(
-                dof_table, mesh_elements, local_assemblers,
-                std::forward<ExtraCtorArgs>(extra_ctor_args)...);
-            break;
-        case 3:
-            detail::createLocalAssemblers<3, DisplacementDim,
-                                          LocalAssemblerImplementation>(
-                dof_table, mesh_elements, local_assemblers,
-                std::forward<ExtraCtorArgs>(extra_ctor_args)...);
-            break;
-        default:
-            OGS_FATAL(
-                "Meshes with dimension different than two and three are not "
-                "supported.");
-    }
+//    switch (dimension)
+//    {
+//        case 2:
+//            detail::createLocalAssemblers<2, DisplacementDim,
+//                                          LocalAssemblerImplementation>(
+//                dof_table, mesh_elements, local_assemblers,
+//                std::forward<ExtraCtorArgs>(extra_ctor_args)...);
+//            break;
+//        case 3:
+//            detail::createLocalAssemblers<3, DisplacementDim,
+//                                          LocalAssemblerImplementation>(
+//                dof_table, mesh_elements, local_assemblers,
+//                std::forward<ExtraCtorArgs>(extra_ctor_args)...);
+//            break;
+//        default:
+//            OGS_FATAL(
+//                "Meshes with dimension different than two and three are not "
+//                "supported.");
+//    }
+
+
 }
 }  // TMPhaseField
 
 }  // ProcessLib
-
-#endif  // PROCESSLIB_TMPHASEFIELD_CREATE_LOCAL_ASSEMBLERS_H_

@@ -14,6 +14,7 @@
 #include <Eigen/Eigenvalues>
 
 #include "MaterialLib/SolidModels/KelvinVector.h"
+#include "MaterialLib/SolidModels/MechanicsBase.h"
 #include "MaterialLib/SolidModels/LinearElasticIsotropicTMPhaseField.h"
 #include "MaterialLib/SolidModels/LinearElasticIsotropic.h"
 #include "MathLib/LinAlg/Eigen/EigenMapTools.h"
@@ -45,33 +46,33 @@ struct IntegrationPointData final
     {
     }
 
-#if defined(_MSC_VER) && _MSC_VER < 1900
-    // The default generated move-ctor is correctly generated for other
-    // compilers.
-    explicit IntegrationPointData(IntegrationPointData&& other)
-        : b_matrices(std::move(other.b_matrices)),
-          sigma(std::move(other.sigma)),
-          sigma_prev(std::move(other.sigma_prev)),
-          eps(std::move(other.eps)),
-          eps_prev(std::move(other.eps_prev)),
-          eps_m(std::move(other.eps_m)),
-          eps_m_prev(std::move(other.eps_m_prev)),
-          solid_material(other.solid_material),
-          material_state_variables(std::move(other.material_state_variables)),
-          C(std::move(other.C)),
-          C_tensile(std::move(other.C_tensile)),
-          C_compressive(std::move(other.C_compressive)),
-          integration_weight(std::move(other.integration_weight)),
-          strain_energy_tensile(std::move(other.strain_energy_tensile)),
-          history_variable(std::move(other.history_variable)),
-          history_variable_prev(std::move(other.history_variable_prev)),
-          sigma_tensile(std::move(other.sigma_tensile)),
-          sigma_compressive(std::move(other.sigma_compressive)),
-          sigma_real(std::move(other.sigma_real)),
-          sigma_real_prev(std::move(other.sigma_real_prev))
-    {
-    }
-#endif  // _MSC_VER
+//#if defined(_MSC_VER) && _MSC_VER < 1900
+//    // The default generated move-ctor is correctly generated for other
+//    // compilers.
+//    explicit IntegrationPointData(IntegrationPointData&& other)
+//        : b_matrices(std::move(other.b_matrices)),
+//          sigma(std::move(other.sigma)),
+//          sigma_prev(std::move(other.sigma_prev)),
+//          eps(std::move(other.eps)),
+//          eps_prev(std::move(other.eps_prev)),
+//          eps_m(std::move(other.eps_m)),
+//          eps_m_prev(std::move(other.eps_m_prev)),
+//          solid_material(other.solid_material),
+//          material_state_variables(std::move(other.material_state_variables)),
+//          C(std::move(other.C)),
+//          C_tensile(std::move(other.C_tensile)),
+//          C_compressive(std::move(other.C_compressive)),
+//          integration_weight(std::move(other.integration_weight)),
+//          strain_energy_tensile(std::move(other.strain_energy_tensile)),
+//          history_variable(std::move(other.history_variable)),
+//          history_variable_prev(std::move(other.history_variable_prev)),
+//          sigma_tensile(std::move(other.sigma_tensile)),
+//          sigma_compressive(std::move(other.sigma_compressive)),
+//          sigma_real(std::move(other.sigma_real)),
+//          sigma_real_prev(std::move(other.sigma_real_prev))
+//    {
+//    }
+//#endif  // _MSC_VER
 
     typename ShapeMatrixType::NodalRowVectorType N;
     typename ShapeMatrixType::GlobalDimNodalMatrixType dNdx;
@@ -137,53 +138,59 @@ struct IntegrationPointData final
 template <typename ShapeMatrixType>
 struct SecondaryData
 {
-    std::vector<ShapeMatrixType> N;
+    std::vector<ShapeMatrixType, Eigen::aligned_allocator<ShapeMatrixType>> N;
 };
 
-struct PhaseFieldLocalAssemblerInterface
-    : public ProcessLib::LocalAssemblerInterface,
-      public NumLib::ExtrapolatableElement
-{
-    virtual std::vector<double> const& getIntPtSigmaXX(
-        std::vector<double>& cache) const = 0;
+//struct PhaseFieldLocalAssemblerInterface
+//    : public ProcessLib::LocalAssemblerInterface,
+//      public NumLib::ExtrapolatableElement
+//{
+//    virtual std::vector<double> const& getIntPtSigmaXX(
+//        std::vector<double>& cache) const = 0;
 
-    virtual std::vector<double> const& getIntPtSigmaYY(
-        std::vector<double>& cache) const = 0;
+//    virtual std::vector<double> const& getIntPtSigmaYY(
+//        std::vector<double>& cache) const = 0;
 
-    virtual std::vector<double> const& getIntPtSigmaZZ(
-        std::vector<double>& cache) const = 0;
+//    virtual std::vector<double> const& getIntPtSigmaZZ(
+//        std::vector<double>& cache) const = 0;
 
-    virtual std::vector<double> const& getIntPtSigmaXY(
-        std::vector<double>& cache) const = 0;
+//    virtual std::vector<double> const& getIntPtSigmaXY(
+//        std::vector<double>& cache) const = 0;
 
-    virtual std::vector<double> const& getIntPtSigmaXZ(
-        std::vector<double>& cache) const = 0;
+//    virtual std::vector<double> const& getIntPtSigmaXZ(
+//        std::vector<double>& cache) const = 0;
 
-    virtual std::vector<double> const& getIntPtSigmaYZ(
-        std::vector<double>& cache) const = 0;
+//    virtual std::vector<double> const& getIntPtSigmaYZ(
+//        std::vector<double>& cache) const = 0;
 
-    virtual std::vector<double> const& getIntPtEpsilonXX(
-        std::vector<double>& cache) const = 0;
+//    virtual std::vector<double> const& getIntPtEpsilonXX(
+//        std::vector<double>& cache) const = 0;
 
-    virtual std::vector<double> const& getIntPtEpsilonYY(
-        std::vector<double>& cache) const = 0;
+//    virtual std::vector<double> const& getIntPtEpsilonYY(
+//        std::vector<double>& cache) const = 0;
 
-    virtual std::vector<double> const& getIntPtEpsilonZZ(
-        std::vector<double>& cache) const = 0;
+//    virtual std::vector<double> const& getIntPtEpsilonZZ(
+//        std::vector<double>& cache) const = 0;
 
-    virtual std::vector<double> const& getIntPtEpsilonXY(
-        std::vector<double>& cache) const = 0;
+//    virtual std::vector<double> const& getIntPtEpsilonXY(
+//        std::vector<double>& cache) const = 0;
 
-    virtual std::vector<double> const& getIntPtEpsilonXZ(
-        std::vector<double>& cache) const = 0;
+//    virtual std::vector<double> const& getIntPtEpsilonXZ(
+//        std::vector<double>& cache) const = 0;
 
-    virtual std::vector<double> const& getIntPtEpsilonYZ(
-        std::vector<double>& cache) const = 0;
-};
+//    virtual std::vector<double> const& getIntPtEpsilonYZ(
+//        std::vector<double>& cache) const = 0;
+
+//    virtual std::vector<double> const& getIntPtHeatFlux(
+//        const double /*t*/,
+//        GlobalVector const& /*current_solution*/,
+//        NumLib::LocalToGlobalIndexMap const& /*dof_table*/,
+//        std::vector<double>& cache) const = 0;
+//};
 
 template <typename ShapeFunction, typename IntegrationMethod,
           int DisplacementDim>
-class PhaseFieldLocalAssembler : public PhaseFieldLocalAssemblerInterface
+class TMPhaseFieldLocalAssembler : public TMPhaseFieldLocalAssemblerInterface
 {
 public:
     using ShapeMatricesType =
@@ -201,13 +208,21 @@ public:
         ShapeFunction::NPOINTS + ShapeFunction::NPOINTS * DisplacementDim,
         ShapeFunction::NPOINTS + ShapeFunction::NPOINTS * DisplacementDim>;
 
-    PhaseFieldLocalAssembler(PhaseFieldLocalAssembler const&) = delete;
-    PhaseFieldLocalAssembler(PhaseFieldLocalAssembler&&) = delete;
+    using LocalAssemblerTraits = ProcessLib::LocalAssemblerTraits<
+            ShapeMatricesType, ShapeFunction::NPOINTS,
+            2 * ShapeFunction::NPOINTS + ShapeFunction::NPOINTS * DisplacementDim, DisplacementDim>;
 
-    PhaseFieldLocalAssembler(
+    using NodalMatrixType = typename LocalAssemblerTraits::LocalMatrix;
+    using NodalVectorType = typename LocalAssemblerTraits::LocalVector;
+    using GlobalDimVectorType = typename ShapeMatricesType::GlobalDimVectorType;
+
+    TMPhaseFieldLocalAssembler(TMPhaseFieldLocalAssembler const&) = delete;
+    TMPhaseFieldLocalAssembler(TMPhaseFieldLocalAssembler&&) = delete;
+
+    TMPhaseFieldLocalAssembler(
         MeshLib::Element const& e,
         std::size_t const /*local_matrix_size*/,
-        bool is_axially_symmetric,
+        bool const is_axially_symmetric,
         unsigned const integration_order,
         TMPhaseFieldProcessData<DisplacementDim>& process_data)
         : _process_data(process_data),
@@ -279,7 +294,7 @@ public:
                   std::vector<double>& /*local_rhs_data*/) override
     {
         OGS_FATAL(
-            "PhaseFieldLocalAssembler: assembly without jacobian is not "
+            "TMPhaseFieldLocalAssembler: assembly without jacobian is not "
             "implemented.");
     }
 
@@ -365,6 +380,7 @@ public:
 
         unsigned const n_integration_points =
             _integration_method.getNumberOfPoints();
+
         for (unsigned ip = 0; ip < n_integration_points; ip++)
         {
             x_position.setIntegrationPoint(ip);
@@ -458,7 +474,7 @@ public:
             //
             // displacement equation, phasefield part
             //
-            //Kud.noalias() += B.transpose() * 2 * d_ip * sigma_tensile * N * w;
+            Kud.noalias() += B.transpose() * 2 * d_ip * sigma_tensile * N * w;
 
             if (history_variable_prev < strain_energy_tensile)
             {
@@ -494,8 +510,10 @@ public:
             double const epsm_trace = Invariants::trace(eps_m);
             if (epsm_trace >= 0)
             {
-                KTT.noalias() += dNdx.transpose() * (d_ip*d_ip*(1-lambda_res) + lambda_res) *
-                                 lambda * dNdx * w;
+                // KTT.noalias() += dNdx.transpose() * (d_ip*d_ip*(1-lambda_res) + lambda_res) *
+                //                 lambda * dNdx * w;
+                KTT.noalias() += dNdx.transpose() * (d_ip*d_ip*lambda + (1 - d_ip)*(1 - d_ip)*lambda_res) *
+                                 dNdx * w;
                 KTd.noalias() += dNdx.transpose() * 2 * d_ip * lambda *
                                  dNdx * T * N * w;
             }
@@ -556,16 +574,52 @@ public:
         local_rhs.template block<temperature_size, 1>(temperature_index, 0)
            .noalias() -= KTT * T + DTT * T_dot;
 
-        // local_rhs.template block<temperature_size, 1>(temperature_index, 0)
-        //    .noalias() -= KTd * d;
+        local_rhs.template block<temperature_size, 1>(temperature_index, 0)
+           .noalias() -= KTd * d;
 
-        // local_rhs.template block<phasefield_size, 1>(phasefield_index, 0)
-        //    .noalias() += KdT * T;
+        local_rhs.template block<phasefield_size, 1>(phasefield_index, 0)
+           .noalias() += KdT * T;
 
-        // local_rhs.template block<displacement_size, 1>(displacement_index, 0)
-        //    .noalias() += KuT * T;
+        local_rhs.template block<displacement_size, 1>(displacement_index, 0)
+           .noalias() += KuT * T;
 
     }
+
+    /*void computeSecondaryVariableConcrete(
+            const double t, std::vector<double> const& local_x) override
+        {
+            auto const local_matrix_size = local_x.size();
+            assert(local_matrix_size == temperature_size + phasefield_size + displacement_size);
+
+            auto d = Eigen::Map<typename ShapeMatricesType::template VectorType<
+                phasefield_size> const>(local_x.data() + phasefield_index,
+                                        phasefield_size);
+
+            unsigned const n_integration_points =
+                _integration_method.getNumberOfPoints();
+
+            SpatialPosition x_position;
+            x_position.setElementID(_element.getID());
+            const auto local_x_vec =
+                MathLib::toVector<NodalVectorType>(local_x, local_matrix_size);
+
+            for (unsigned ip = 0; ip < n_integration_points; ip++)
+            {
+                x_position.setIntegrationPoint(ip);
+                auto const& dNdx = _ip_data[ip].dNdx;
+                auto const& N = _ip_data[ip].N;
+                double const d_ip = N.dot(d);
+                auto const lambda = _process_data.thermal_conductivity(t, x_position)[0];
+                auto const lambda_res = _process_data.residual_thermal_conductivity(t, x_position)[0];
+                // heat flux only computed for output.
+                GlobalDimVectorType const heat_flux = -(d_ip*d_ip*lambda + (1 - d_ip)*(1 - d_ip)*lambda_res) * dNdx * local_x_vec;
+
+                for (unsigned dm = 0; dm < DisplacementDim; ++dm)
+                {
+                    _heat_fluxes[dm][ip] = heat_flux[dm];
+                }
+            }
+        }*/
 
     void preTimestepConcrete(std::vector<double> const& /*local_x*/,
                              double const /*t*/,
@@ -671,6 +725,57 @@ public:
         return getIntPtEpsilon(cache, 5);
     }
 
+    std::vector<double> const& getIntPtHeatFlux(
+        const double t,
+        GlobalVector const& current_solution,
+        NumLib::LocalToGlobalIndexMap const& dof_table,
+        std::vector<double>& cache) const override
+    {
+
+        auto const num_intpts = _ip_data.size();
+
+        auto const indices = NumLib::getIndices(_element.getID(), dof_table);
+        assert(!indices.empty());
+        auto const local_x = current_solution.get(indices);
+
+        cache.clear();
+        auto cache_matrix = MathLib::createZeroedMatrix<Eigen::Matrix<
+        double, DisplacementDim, Eigen::Dynamic, Eigen::RowMajor>>(
+        cache, DisplacementDim, num_intpts);
+
+        SpatialPosition pos;
+        pos.setElementID(_element.getID());
+
+        auto T = Eigen::Map<typename ShapeMatricesType::template VectorType<
+            temperature_size> const>(local_x.data() + temperature_index,
+                                    temperature_size);
+
+        auto d = Eigen::Map<typename ShapeMatricesType::template VectorType<
+            phasefield_size> const>(local_x.data() + phasefield_index,
+                                    phasefield_size);
+
+        unsigned const n_integration_points =
+            _integration_method.getNumberOfPoints();
+
+        SpatialPosition x_position;
+        x_position.setElementID(_element.getID());
+        for (unsigned ip = 0; ip < n_integration_points; ip++)
+        {
+            x_position.setIntegrationPoint(ip);
+            auto const& dNdx = _ip_data[ip].dNdx;
+            auto const& N = _ip_data[ip].N;
+            double const d_ip = N.dot(d);
+            auto const lambda = _process_data.thermal_conductivity(t, x_position)[0];
+            auto const lambda_res = _process_data.residual_thermal_conductivity(t, x_position)[0];
+
+            // Compute the heat flux
+            cache_matrix.col(ip).noalias() =
+                -(d_ip*d_ip*lambda + (1 - d_ip)*(1 - d_ip)*lambda_res) * dNdx * T;
+        }
+
+        return cache;
+    }
+
 private:
     std::vector<double> const& getIntPtSigma(std::vector<double>& cache,
                                              std::size_t const component) const
@@ -710,6 +815,7 @@ private:
 
     IntegrationMethod _integration_method;
     MeshLib::Element const& _element;
+    bool const _is_axially_symmetric;
     SecondaryData<typename ShapeMatrices::ShapeType> _secondary_data;
 
     static const int temperature_index = 0;
