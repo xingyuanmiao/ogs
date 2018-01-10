@@ -166,7 +166,7 @@ void Process::setInitialConditions(const int processs_id, double const t,
 }
 
 MathLib::MatrixSpecifications Process::getMatrixSpecifications(
-    const int /*equation_id*/) const
+    const int /*process_id*/) const
 {
     auto const& l = *_local_to_global_index_map;
     return {l.dofSizeWithoutGhosts(), l.dofSizeWithoutGhosts(),
