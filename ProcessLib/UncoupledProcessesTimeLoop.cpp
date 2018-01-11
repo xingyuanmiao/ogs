@@ -12,6 +12,7 @@
 #include "BaseLib/Error.h"
 #include "BaseLib/RunTime.h"
 #include "BaseLib/uniqueInsert.h"
+#include "BaseLib/reorderVector.h"
 #include "NumLib/ODESolver/ConvergenceCriterionPerComponent.h"
 #include "NumLib/ODESolver/TimeDiscretizationBuilder.h"
 #include "NumLib/ODESolver/TimeDiscretizedODESystem.h"
@@ -347,16 +348,24 @@ std::unique_ptr<UncoupledProcessesTimeLoop> createUncoupledProcessesTimeLoop(
             //! \ogs_file_param{prj__time_loop__global_process_coupling__convergence_criteria}
             coupling_config->getConfigSubtree("convergence_criteria");
 
+        std::vector<int> criterion_ids;
         for (
             auto coupling_convergence_criterion_config :
             //! \ogs_file_param{prj__time_loop__global_process_coupling__convergence_criteria__convergence_criterion}
             coupling_convergence_criteria_config.getConfigSubtreeList(
                 "convergence_criterion"))
         {
+            //! \ogs_file_attr{prj__time_loop__global_process_coupling__convergence_criteria__convergence_criterion__id}
+            auto const id =
+                coupling_convergence_criterion_config.getConfigAttribute<int>(
+                    "id");
+            criterion_ids.push_back(id);
+
             global_coupling_conv_criteria.push_back(
                 NumLib::createConvergenceCriterion(
                     coupling_convergence_criterion_config));
         }
+        BaseLib::reorderVector(global_coupling_conv_criteria, criterion_ids);
     }
 
     auto output =
