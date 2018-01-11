@@ -59,13 +59,13 @@
             <max_iter> 6 </max_iter>
             <convergence_criteria>
                 <!-- convergence criterion for the first process -->
-                <convergence_criterion>
+                <convergence_criterion  id="0">
                     <type>DeltaX</type>
                     <norm_type>NORM2</norm_type>
                     <reltol>1.e-14</reltol>
                 </convergence_criterion>
                 <!-- convergence criterion for the second process -->
-                <convergence_criterion>
+                <convergence_criterion  id="1">
                     <type>DeltaX</type>
                     <norm_type>NORM2</norm_type>
                     <reltol>1.e-14</reltol>
