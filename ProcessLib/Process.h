@@ -59,12 +59,12 @@ public:
                      const double delta_t, const int process_id);
 
     /// Postprocessing after a complete timestep.
-    void postTimestep(GlobalVector const& x, int const processs_id);
+    void postTimestep(GlobalVector const& x, int const process_id);
 
     /// Calculates secondary variables, e.g. stress and strain for deformation
     /// analysis, only after nonlinear solver being successfully conducted.
     void postNonLinearSolver(GlobalVector const& x, const double t,
-                             int const processs_id);
+                             int const process_id);
 
     void preIteration(const unsigned iter, GlobalVector const& x) final;
 
@@ -75,7 +75,7 @@ public:
 
     void initialize();
 
-    void setInitialConditions(const int processs_id, const double t,
+    void setInitialConditions(const int process_id, const double t,
                               GlobalVector& x);
 
     virtual MathLib::MatrixSpecifications getMatrixSpecifications(
@@ -189,13 +189,13 @@ private:
     }
 
     virtual void postTimestepConcreteProcess(GlobalVector const& /*x*/,
-                                             int const /*processs_id*/)
+                                             int const /*process_id*/)
     {
     }
 
     virtual void postNonLinearSolverProcess(GlobalVector const& /*x*/,
                                             const double /*t*/,
-                                            int const /*processs_id*/)
+                                            int const /*process_id*/)
     {
     }
 

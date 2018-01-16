@@ -107,13 +107,13 @@ void Process::initialize()
     initializeBoundaryConditions();
 }
 
-void Process::setInitialConditions(const int processs_id, double const t,
+void Process::setInitialConditions(const int process_id, double const t,
                                    GlobalVector& x)
 {
     // getDOFTableOfProcess can be overloaded by the specific process.
-    auto const dof_table_of_process = getDOFTable(processs_id);
+    auto const dof_table_of_process = getDOFTable(process_id);
 
-    auto const& per_process_variables = _process_variables[processs_id];
+    auto const& per_process_variables = _process_variables[process_id];
     for (std::size_t variable_id = 0;
          variable_id < per_process_variables.size();
          variable_id++)
@@ -122,7 +122,7 @@ void Process::setInitialConditions(const int processs_id, double const t,
 
         auto const& pv = per_process_variables[variable_id];
         DBUG("Set the initial condition of variable %s of process %d.",
-             pv.get().getName().data(), processs_id);
+             pv.get().getName().data(), process_id);
 
         auto const& ic = pv.get().getInitialCondition();
 
@@ -349,17 +349,17 @@ void Process::preTimestep(GlobalVector const& x, const double t,
     preTimestepConcreteProcess(x, t, delta_t, process_id);
 }
 
-void Process::postTimestep(GlobalVector const& x, int const processs_id)
+void Process::postTimestep(GlobalVector const& x, int const process_id)
 {
     MathLib::LinAlg::setLocalAccessibleVector(x);
-    postTimestepConcreteProcess(x, processs_id);
+    postTimestepConcreteProcess(x, process_id);
 }
 
 void Process::postNonLinearSolver(GlobalVector const& x, const double t,
-                                  int const processs_id)
+                                  int const process_id)
 {
     MathLib::LinAlg::setLocalAccessibleVector(x);
-    postNonLinearSolverProcess(x, t, processs_id);
+    postNonLinearSolverProcess(x, t, process_id);
 }
 
 void Process::computeSecondaryVariable(const double t, GlobalVector const& x)

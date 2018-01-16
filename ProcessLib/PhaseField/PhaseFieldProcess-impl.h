@@ -184,7 +184,7 @@ void PhaseFieldProcess<DisplacementDim>::preTimestepConcreteProcess(
 
 template <int DisplacementDim>
 void PhaseFieldProcess<DisplacementDim>::postTimestepConcreteProcess(
-    GlobalVector const& x, int const /*processs_id*/)
+    GlobalVector const& x, int const /*process_id*/)
 {
     DBUG("PostTimestep PhaseFieldProcess.");
 

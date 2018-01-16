@@ -91,7 +91,7 @@ private:
         const int process_id) override;
 
     void postTimestepConcreteProcess(GlobalVector const& x,
-                                     int const processs_id) override;
+                                     int const process_id) override;
 
 private:
     PhaseFieldProcessData<DisplacementDim> _process_data;

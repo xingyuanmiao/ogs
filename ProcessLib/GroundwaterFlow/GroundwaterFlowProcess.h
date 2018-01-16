@@ -61,7 +61,7 @@ public:
     }
 
     void postTimestepConcreteProcess(GlobalVector const& x,
-                                     int const /*processs_id*/) override
+                                     int const /*process_id*/) override
     {
         if (_balance_mesh) // computing the balance is optional
         {

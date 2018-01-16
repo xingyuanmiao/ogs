@@ -338,19 +338,19 @@ void HydroMechanicsProcess<DisplacementDim>::preTimestepConcreteProcess(
 
 template <int DisplacementDim>
 void HydroMechanicsProcess<DisplacementDim>::postTimestepConcreteProcess(
-    GlobalVector const& x, const int processs_id)
+    GlobalVector const& x, const int process_id)
 {
     DBUG("PostTimestep HydroMechanicsProcess.");
     GlobalExecutor::executeMemberOnDereferenced(
         &LocalAssemblerInterface::postTimestep, _local_assemblers,
-        getDOFTable(processs_id), x);
+        getDOFTable(process_id), x);
 }
 
 template <int DisplacementDim>
 void HydroMechanicsProcess<DisplacementDim>::postNonLinearSolverProcess(
-    GlobalVector const& x, const double t, const int processs_id)
+    GlobalVector const& x, const double t, const int process_id)
 {
-    if (!_use_monolithic_scheme && processs_id == 0)
+    if (!_use_monolithic_scheme && process_id == 0)
     {
         return;
     }
@@ -359,7 +359,7 @@ void HydroMechanicsProcess<DisplacementDim>::postNonLinearSolverProcess(
     // Calculate strain, stress or other internal variables of mechanics.
     GlobalExecutor::executeMemberOnDereferenced(
         &LocalAssemblerInterface::postNonLinearSolver, _local_assemblers,
-        getDOFTable(processs_id), x, t, _use_monolithic_scheme);
+        getDOFTable(process_id), x, t, _use_monolithic_scheme);
 }
 
 template <int DisplacementDim>
