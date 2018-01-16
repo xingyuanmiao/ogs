@@ -37,23 +37,24 @@ public:
             process_variables,
         TMPhaseFieldProcessData<DisplacementDim>&& process_data,
         SecondaryVariableCollection&& secondary_variables,
-        NumLib::NamedFunctionCaller&& named_function_caller);
+        NumLib::NamedFunctionCaller&& named_function_caller,
+        bool const use_monolithic_scheme);
 
     //! \name ODESystem interface
     //! @{
     bool isLinear() const override;
     //! @}
 
-    // MathLib::MatrixSpecifications getMatrixSpecifications(
-    //     const int process_id) const override;
+    MathLib::MatrixSpecifications getMatrixSpecifications(
+        const int process_id) const override;
 
-    // NumLib::LocalToGlobalIndexMap const& getDOFTable(
-    //     const int process_id) const override;
+    NumLib::LocalToGlobalIndexMap const& getDOFTable(
+        const int process_id) const override;
 
 private:
     void constructDofTable() override;
 
-    // void initializeBoundaryConditions() override;
+    void initializeBoundaryConditions() override;
 
     void initializeConcreteProcess(
         NumLib::LocalToGlobalIndexMap const& dof_table,
@@ -75,15 +76,20 @@ private:
     void postTimestepConcreteProcess(GlobalVector const& x,
                                      int const process_id) override;
 
+    void postNonLinearSolverProcess(GlobalVector const& x, const double t,
+                                     int const process_id) override;
+
 private:
-    std::vector<MeshLib::Node*> _base_nodes;
-    std::unique_ptr<MeshLib::MeshSubset const> _mesh_subset_base_nodes;
     TMPhaseFieldProcessData<DisplacementDim> _process_data;
 
     std::vector<std::unique_ptr<TMPhaseFieldLocalAssemblerInterface>> _local_assemblers;
 
     std::unique_ptr<NumLib::LocalToGlobalIndexMap>
             _local_to_global_index_map_single_component;
+
+    /// Sparsity pattern for the phase field equation, and it is initialized
+    //  only if the staggered scheme is used.
+    GlobalSparsityPattern _sparsity_pattern_with_single_component;
 };
 
 extern template class TMPhaseFieldProcess<2>;
