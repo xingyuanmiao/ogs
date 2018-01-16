@@ -36,11 +36,11 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
     config.checkConfigParameter("type", "TMPHASE_FIELD");
     DBUG("Create TMPhaseFieldProcess.");
 
-    /*auto const staggered_scheme =
+    auto const staggered_scheme =
        //! \ogs_file_param{prj__processes__process__THERMO_MECHANICS__coupling_scheme}
        config.getConfigParameterOptional<std::string>("coupling_scheme");
     const bool use_monolithic_scheme =
-        !(staggered_scheme && (*staggered_scheme == "staggered"));*/
+        !(staggered_scheme && (*staggered_scheme == "staggered"));
 
     // Process variable.
 
@@ -51,19 +51,34 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
     ProcessVariable* variable_u;
     std::vector<std::vector<std::reference_wrapper<ProcessVariable>>>
         process_variables;
-
-    auto per_process_variables = findProcessVariables(
-        variables, pv_config,
-        {//! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__process_variables__temperature}
-         "temperature",
-         //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__process_variables__phasefield}
-         "phasefield",
-         //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__process_variables__displacement}
-         "displacement"});
-    variable_T = &per_process_variables[0].get();
-    variable_ph = &per_process_variables[1].get();
-    variable_u = &per_process_variables[2].get();
-    process_variables.push_back(std::move(per_process_variables));
+    if (use_monolithic_scheme)  // monolithic scheme.
+    {
+        auto per_process_variables = findProcessVariables(
+            variables, pv_config,
+            {//! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__process_variables__temperature}
+             "temperature",
+             //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__process_variables__phasefield}
+             "phasefield",
+             //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__process_variables__displacement}
+             "displacement"});
+        variable_T = &per_process_variables[0].get();
+        variable_ph = &per_process_variables[1].get();
+        variable_u = &per_process_variables[2].get();
+        process_variables.push_back(std::move(per_process_variables));
+    }
+    else // staggered scheme.
+    {
+        using namespace std::string_literals;
+        for (auto const& variable_name : {"temperature"s, "displacement"s, "phasefield"s})
+        {
+            auto per_process_variables =
+                    findProcessVariables(variables, pv_config, {variable_name});
+            process_variables.push_back(std::move(per_process_variables));
+        }
+        variable_T = &process_variables[0][0].get();
+        variable_u = &process_variables[1][0].get();
+        variable_ph = &process_variables[2][0].get();
+    }
 
     DBUG("Associate displacement with process variable \'%s\'.",
          variable_u->getName().c_str());
@@ -247,7 +262,8 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
     return std::make_unique<TMPhaseFieldProcess<DisplacementDim>>(
             mesh, std::move(jacobian_assembler), parameters, integration_order,
             std::move(process_variables), std::move(process_data),
-            std::move(secondary_variables), std::move(named_function_caller));
+            std::move(secondary_variables), std::move(named_function_caller),
+            use_monolithic_scheme);
 }
 
 template std::unique_ptr<Process> createTMPhaseFieldProcess<2>(

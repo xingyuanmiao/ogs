@@ -56,5 +56,6 @@ extern template std::unique_ptr<Process> createTMPhaseFieldProcess<3>(
     std::vector<std::unique_ptr<ParameterBase>> const& parameters,
     unsigned const integration_order,
     BaseLib::ConfigTree const& config);
+
 }  // namespace TMPhaseField
 }  // namespace ProcessLib
