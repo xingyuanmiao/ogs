@@ -56,9 +56,9 @@ MathLib::MatrixSpecifications
 TMPhaseFieldProcess<DisplacementDim>::getMatrixSpecifications(
     const int process_id) const
 {
-    // For the monolithic scheme or the M process (deformation) in the staggered
+    // For the monolithic scheme or the TM process (temperature-deformation) in the staggered
     // scheme.
-    if (_use_monolithic_scheme || process_id == 0)
+    if (_use_monolithic_scheme || process_id == 1)
     {
         auto const& l = *_local_to_global_index_map;
         return {l.dofSizeWithoutGhosts(), l.dofSizeWithoutGhosts(),
@@ -75,9 +75,9 @@ template <int DisplacementDim>
 NumLib::LocalToGlobalIndexMap const&
 TMPhaseFieldProcess<DisplacementDim>::getDOFTable(const int process_id) const
 {
-    // If monolithic scheme is used or the equation of deformation is solved in
+    // If monolithic scheme is used or the equations of temperature-deformation is solved in
     // the staggered scheme.
-    if (_use_monolithic_scheme || process_id == 0)
+    if (_use_monolithic_scheme || process_id == 1)
     {
         return *_local_to_global_index_map;
     }
@@ -112,16 +112,15 @@ void TMPhaseFieldProcess<DisplacementDim>::constructDofTable()
         all_mesh_subsets.emplace_back(_mesh_subset_all_nodes.get());
         all_mesh_subsets.emplace_back(_mesh_subset_all_nodes.get());
 
-        const int process_id = 0;  // Only one process in the monolithic scheme.
+        const int monolithic_process_id = 0;  // Only one process in the monolithic scheme.
         std::generate_n(
             std::back_inserter(all_mesh_subsets),
-            getProcessVariables(process_id)[1].get().getNumberOfComponents() +
-                1,
+            getProcessVariables(monolithic_process_id)[2].get().getNumberOfComponents(),
             [&]() {
                 return MeshLib::MeshSubsets{_mesh_subset_all_nodes.get()};
             });
 
-        std::vector<int> const vec_n_components{1, DisplacementDim};
+        std::vector<int> const vec_n_components{1, 1, DisplacementDim};
         _local_to_global_index_map =
             std::make_unique<NumLib::LocalToGlobalIndexMap>(
                 std::move(all_mesh_subsets), vec_n_components,
@@ -260,7 +259,7 @@ void TMPhaseFieldProcess<DisplacementDim>::initializeBoundaryConditions()
         return;
     }
 
-    // for the equations of deformation.
+    // for the equations of temperature-deformation.
     const int process_id_of_u = 0;
     initializeProcessBoundaryCondition(*_local_to_global_index_map,
                                        process_id_of_u);
@@ -277,7 +276,7 @@ void TMPhaseFieldProcess<DisplacementDim>::assembleConcreteProcess(
     const double t, GlobalVector const& x, GlobalMatrix& M, GlobalMatrix& K,
     GlobalVector& b)
 {
-    DBUG("Assemble the equation for TMPhaseFieldProcess.");
+    DBUG("Assemble the equations for TMPhaseFieldProcess.");
 
     std::vector<std::reference_wrapper<NumLib::LocalToGlobalIndexMap>>
        dof_table = {std::ref(*_local_to_global_index_map)};
@@ -319,7 +318,7 @@ void TMPhaseFieldProcess<DisplacementDim>::
     else
     {
         DBUG(
-            "Assemble the Jacobian equations of deformation in "
+            "Assemble the Jacobian equations of temperature-deformation in "
             "TMPhaseFieldProcess for the staggered scheme.");
     }
 

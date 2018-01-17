@@ -198,7 +198,7 @@ public:
                 process_data.history_field(0, x_position)[0];
             ip_data.history_variable_prev =
                 process_data.history_field(0, x_position)[0];
-            ip_data.sigma_real.resize(kelvin_vector_size);
+            ip_data.sigma_real.setZero(kelvin_vector_size);
 
             ip_data.N = shape_matrices[ip].N;
             ip_data.dNdx = shape_matrices[ip].dNdx;
