@@ -254,7 +254,7 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
     SecondaryVariableCollection secondary_variables;
 
     NumLib::NamedFunctionCaller named_function_caller(
-        {"PhaseField_temperature_displacement"});
+        {"temperature_phasefield_displacement"});
 
     ProcessLib::parseSecondaryVariables(config, secondary_variables,
                                         named_function_caller);

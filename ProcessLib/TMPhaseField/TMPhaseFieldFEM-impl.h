@@ -5,7 +5,7 @@
  *              See accompanying file LICENSE.txt or
  *              http://www.opengeosys.org/project/license
  *
- *  \file   PhaseFieldFEM-impl.h
+ *  \file   TMPhaseFieldFEM-impl.h
  *  Created on January 8, 2018, 3:00 PM
  */
 #pragma once
@@ -159,20 +159,20 @@ void TMPhaseFieldLocalAssembler<ShapeFunction, IntegrationMethod,
         //
         // displacement equation, displacement part
         //
-        auto const d_prev = d - d_dot*dt;
+        // auto const d_prev = d - d_dot*dt;
 
         double const d_ip = N.dot(d);
-        double const d_ip_prev = N.dot(d_prev);
+        // double const d_ip_prev = N.dot(d_prev);
         double const degradation = d_ip * d_ip * (1 - k) + k;
-        double const degradation_prev = d_ip_prev * d_ip_prev * (1 - k) + k;
+        // double const degradation_prev = d_ip_prev * d_ip_prev * (1 - k) + k;
         eps.noalias() = B * u;
-        _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u, alpha, delta_T, degradation_prev);
+        _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u, alpha, delta_T, degradation);
 
         local_Jac
             .template block<displacement_size, displacement_size>(
                 displacement_index, displacement_index)
             .noalias() +=
-            B.transpose() * (degradation_prev * C_tensile + C_compressive) * B * w;
+            B.transpose() * (degradation * C_tensile + C_compressive) * B * w;
 
         typename ShapeMatricesType::template MatrixType<DisplacementDim,
                                                         displacement_size>
@@ -197,7 +197,7 @@ void TMPhaseFieldLocalAssembler<ShapeFunction, IntegrationMethod,
         //
         // displacement equation, temperature part
         //
-        KuT.noalias() += B.transpose() * (degradation_prev * C_tensile + C_compressive) *
+        KuT.noalias() += B.transpose() * (degradation * C_tensile + C_compressive) *
                                          alpha * Invariants::identity2 * N * w;
 
         //
