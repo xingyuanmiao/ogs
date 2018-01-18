@@ -19,6 +19,7 @@
 #include "NonuniformNeumannBoundaryCondition.h"
 #include "NormalTractionBoundaryCondition.h"
 #include "RobinBoundaryCondition.h"
+#include "SolutionDependentDirichletBoundaryCondition.h"
 
 namespace ProcessLib
 {
@@ -63,6 +64,12 @@ BoundaryConditionBuilder::createBoundaryCondition(
             shapefunction_order);
     }
 
+    if (type == "SolutionDependentDirichlet")
+     {
+             return createSolutionDependentDirichletBoundaryCondition(
+                 config, dof_table, mesh, variable_id, integration_order,
+                 shapefunction_order, parameters);
+     }
     //
     // Special boundary conditions
     //
@@ -229,6 +236,20 @@ BoundaryConditionBuilder::createNormalTractionBoundaryCondition(
             integration_order, shapefunction_order, mesh.getDimension(),
             parameters);
 }
+
+std::unique_ptr<BoundaryCondition>
+ BoundaryConditionBuilder::createSolutionDependentDirichletBoundaryCondition(
+     const BoundaryConditionConfig& config,
+     const NumLib::LocalToGlobalIndexMap& dof_table, const MeshLib::Mesh& mesh,
+     const int variable_id, const unsigned /*integration_order*/,
+     const unsigned /*shapefunction_order*/,
+     const std::vector<
+         std::unique_ptr<ProcessLib::ParameterBase>>& /*parameters*/)
+ {
+     return ProcessLib::createSolutionDependentDirichletBoundaryCondition(
+         config.config, dof_table, mesh, variable_id, *config.component_id);
+ }
+
 
 std::vector<MeshLib::Element*> BoundaryConditionBuilder::getClonedElements(
     MeshGeoToolsLib::BoundaryElementsSearcher& boundary_element_searcher,
