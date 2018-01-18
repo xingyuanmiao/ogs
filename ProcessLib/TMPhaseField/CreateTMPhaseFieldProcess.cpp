@@ -13,7 +13,7 @@
 
 #include "MaterialLib/SolidModels/CreateLinearElasticIsotropic.h"
 #include "MaterialLib/SolidModels/LinearElasticIsotropicTMPhaseField.h"
-#include "ProcessLib/Utils/ParseSecondaryVariables.h"
+#include "ProcessLib/Output/CreateSecondaryVariables.h"
 
 #include "TMPhaseFieldProcess.h"
 #include "TMPhaseFieldProcessData.h"
@@ -22,7 +22,6 @@ namespace ProcessLib
 {
 namespace TMPhaseField
 {
-
 template <int DisplacementDim>
 std::unique_ptr<Process> createTMPhaseFieldProcess(
     MeshLib::Mesh& mesh,
@@ -37,8 +36,8 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
     DBUG("Create TMPhaseFieldProcess.");
 
     auto const staggered_scheme =
-       //! \ogs_file_param{prj__processes__process__THERMO_MECHANICS__coupling_scheme}
-       config.getConfigParameterOptional<std::string>("coupling_scheme");
+        //! \ogs_file_param{prj__processes__process__THERMO_MECHANICS__coupling_scheme}
+        config.getConfigParameterOptional<std::string>("coupling_scheme");
     const bool use_monolithic_scheme =
         !(staggered_scheme && (*staggered_scheme == "staggered"));
 
@@ -51,6 +50,9 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
     ProcessVariable* variable_u;
     std::vector<std::vector<std::reference_wrapper<ProcessVariable>>>
         process_variables;
+    int mechanics_related_process_id = 0;
+    int phase_field_process_id = 0;
+    int heat_conduction_process_id = 0;
     if (use_monolithic_scheme)  // monolithic scheme.
     {
         auto per_process_variables = findProcessVariables(
@@ -66,25 +68,29 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
         variable_u = &per_process_variables[2].get();
         process_variables.push_back(std::move(per_process_variables));
     }
-    else // staggered scheme.
+    else  // staggered scheme.
     {
         using namespace std::string_literals;
-        for (auto const& variable_name : {"temperature"s, "displacement"s, "phasefield"s})
+        for (auto const& variable_name :
+             {"temperature"s, "displacement"s, "phasefield"s})
         {
             auto per_process_variables =
-                    findProcessVariables(variables, pv_config, {variable_name});
+                findProcessVariables(variables, pv_config, {variable_name});
             process_variables.push_back(std::move(per_process_variables));
         }
-        variable_T = &process_variables[0][0].get();
-        variable_u = &process_variables[1][0].get();
-        variable_ph = &process_variables[2][0].get();
+        heat_conduction_process_id = 0;
+        mechanics_related_process_id = 1;
+        phase_field_process_id = 2;
+
+        variable_T = &process_variables[heat_conduction_process_id][0].get();
+        variable_u = &process_variables[mechanics_related_process_id][0].get();
+        variable_ph = &process_variables[phase_field_process_id][0].get();
     }
 
     DBUG("Associate displacement with process variable \'%s\'.",
          variable_u->getName().c_str());
 
-    if (variable_u->getNumberOfComponents() !=
-        DisplacementDim)
+    if (variable_u->getNumberOfComponents() != DisplacementDim)
     {
         OGS_FATAL(
             "Number of components of the process variable '%s' is different "
@@ -99,7 +105,8 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
     if (variable_ph->getNumberOfComponents() != 1)
     {
         OGS_FATAL(
-            "Phase field process variable '%s' is not a scalar variable but has "
+            "Phase field process variable '%s' is not a scalar variable but "
+            "has "
             "%d components.",
             variable_ph->getName().c_str(),
             variable_ph->getNumberOfComponents());
@@ -110,12 +117,12 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
     if (variable_T->getNumberOfComponents() != 1)
     {
         OGS_FATAL(
-            "Temperature process variable '%s' is not a scalar variable but has "
+            "Temperature process variable '%s' is not a scalar variable but "
+            "has "
             "%d components.",
             variable_T->getName().c_str(),
             variable_T->getNumberOfComponents());
     }
-
 
     // Constitutive relation.
     // read type;
@@ -131,11 +138,13 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
         material = nullptr;
     if (type == "LinearElasticIsotropic")
     {
-        auto elastic_model = MaterialLib::Solids::createLinearElasticIsotropic<
-                DisplacementDim>(parameters, constitutive_relation_config);
-        material =
-                std::make_unique<MaterialLib::Solids::LinearElasticIsotropicTMPhaseField<
-                DisplacementDim>>(std::move(elastic_model->getMaterialProperties()));
+        auto elastic_model =
+            MaterialLib::Solids::createLinearElasticIsotropic<DisplacementDim>(
+                parameters, constitutive_relation_config);
+        material = std::make_unique<
+            MaterialLib::Solids::LinearElasticIsotropicTMPhaseField<
+                DisplacementDim>>(
+            std::move(elastic_model->getMaterialProperties()));
     }
     else
     {
@@ -149,24 +158,21 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
         config,
         //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__residual_stiffness}
         "residual_stiffness", parameters, 1);
-    DBUG("Use \'%s\' as residual stiffness.",
-        residual_stiffness.name.c_str());
+    DBUG("Use \'%s\' as residual stiffness.", residual_stiffness.name.c_str());
 
     // Crack resistance
     auto& crack_resistance = findParameter<double>(
         config,
         //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__crack_resistance}
         "crack_resistance", parameters, 1);
-    DBUG("Use \'%s\' as crack resistance.",
-        crack_resistance.name.c_str());
+    DBUG("Use \'%s\' as crack resistance.", crack_resistance.name.c_str());
 
     // Crack length scale
     auto& crack_length_scale = findParameter<double>(
         config,
         //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__crack_length_scale}
         "crack_length_scale", parameters, 1);
-    DBUG("Use \'%s\' as crack length scale.",
-        crack_length_scale.name.c_str());
+    DBUG("Use \'%s\' as crack length scale.", crack_length_scale.name.c_str());
 
     // Kinetic coefficient
     auto& kinetic_coefficient = findParameter<double>(
@@ -174,16 +180,14 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
         //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__kinetic_coefficient}
         "kinetic_coefficient", parameters, 1);
     DBUG("Use \'%s\' as kinetic coefficient.",
-        kinetic_coefficient.name.c_str());
+         kinetic_coefficient.name.c_str());
 
     // Solid density
     auto& solid_density = findParameter<double>(
         config,
         //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__solid_density}
-        "solid_density",
-        parameters, 1);
-    DBUG("Use \'%s\' as solid density parameter.",
-        solid_density.name.c_str());
+        "solid_density", parameters, 1);
+    DBUG("Use \'%s\' as solid density parameter.", solid_density.name.c_str());
 
     // History field
     auto& history_field = findParameter<double>(
@@ -198,7 +202,7 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
         //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__linear_thermal_expansion_coefficient}
         "linear_thermal_expansion_coefficient", parameters, 1);
     DBUG("Use \'%s\' as linear thermal expansion coefficient.",
-        linear_thermal_expansion_coefficient.name.c_str());
+         linear_thermal_expansion_coefficient.name.c_str());
 
     // Specific heat capacity
     auto& specific_heat_capacity = findParameter<double>(
@@ -206,7 +210,7 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
         //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__specific_heat_capacity}
         "specific_heat_capacity", parameters, 1);
     DBUG("Use \'%s\' as specific heat capacity.",
-        specific_heat_capacity.name.c_str());
+         specific_heat_capacity.name.c_str());
 
     // Thermal conductivity
     auto& thermal_conductivity = findParameter<double>(
@@ -214,14 +218,14 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
         //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__thermal_conductivity}
         "thermal_conductivity", parameters, 1);
     DBUG("Use \'%s\' as thermal conductivity parameter.",
-        thermal_conductivity.name.c_str());
+         thermal_conductivity.name.c_str());
     // Residual thermal conductivity
     auto& residual_thermal_conductivity = findParameter<double>(
         config,
         //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__residual_thermal_conductivity}
         "residual_thermal_conductivity", parameters, 1);
     DBUG("Use \'%s\' as residual thermal conductivity parameter.",
-        residual_thermal_conductivity.name.c_str());
+         residual_thermal_conductivity.name.c_str());
     // Reference temperature
     const double reference_temperature =
         //! \ogs_file_param_special{prj__processes__process__TMPHASE_FIELD__reference_temperature}
@@ -245,10 +249,18 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
     }
 
     TMPhaseFieldProcessData<DisplacementDim> process_data{
-        std::move(material), residual_stiffness, crack_resistance,
-        crack_length_scale, kinetic_coefficient, solid_density,
-        history_field, linear_thermal_expansion_coefficient, specific_heat_capacity,
-        thermal_conductivity, residual_thermal_conductivity, reference_temperature,
+        std::move(material),
+        residual_stiffness,
+        crack_resistance,
+        crack_length_scale,
+        kinetic_coefficient,
+        solid_density,
+        history_field,
+        linear_thermal_expansion_coefficient,
+        specific_heat_capacity,
+        thermal_conductivity,
+        residual_thermal_conductivity,
+        reference_temperature,
         specific_body_force};
 
     SecondaryVariableCollection secondary_variables;
@@ -256,14 +268,15 @@ std::unique_ptr<Process> createTMPhaseFieldProcess(
     NumLib::NamedFunctionCaller named_function_caller(
         {"temperature_phasefield_displacement"});
 
-    ProcessLib::parseSecondaryVariables(config, secondary_variables,
-                                        named_function_caller);
+    ProcessLib::createSecondaryVariables(config, secondary_variables,
+                                         named_function_caller);
 
     return std::make_unique<TMPhaseFieldProcess<DisplacementDim>>(
-            mesh, std::move(jacobian_assembler), parameters, integration_order,
-            std::move(process_variables), std::move(process_data),
-            std::move(secondary_variables), std::move(named_function_caller),
-            use_monolithic_scheme);
+        mesh, std::move(jacobian_assembler), parameters, integration_order,
+        std::move(process_variables), std::move(process_data),
+        std::move(secondary_variables), std::move(named_function_caller),
+        use_monolithic_scheme, mechanics_related_process_id,
+        phase_field_process_id, heat_conduction_process_id);
 }
 
 template std::unique_ptr<Process> createTMPhaseFieldProcess<2>(

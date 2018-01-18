@@ -38,7 +38,10 @@ public:
         TMPhaseFieldProcessData<DisplacementDim>&& process_data,
         SecondaryVariableCollection&& secondary_variables,
         NumLib::NamedFunctionCaller&& named_function_caller,
-        bool const use_monolithic_scheme);
+        bool const use_monolithic_scheme,
+        int const mechanics_related_process_id,
+        int const phase_field_process_id,
+        int const heat_conduction_process_id);
 
     //! \name ODESystem interface
     //! @{
@@ -71,25 +74,37 @@ private:
         GlobalMatrix& K, GlobalVector& b, GlobalMatrix& Jac) override;
 
     void preTimestepConcreteProcess(GlobalVector const& x, double const t,
-                                    double const dt, const int process_id) override;
+                                    double const dt,
+                                    const int process_id) override;
 
     void postTimestepConcreteProcess(GlobalVector const& x,
                                      int const process_id) override;
 
-    void postNonLinearSolverProcess(GlobalVector const& x, const double t,
-                                     int const process_id) override;
-
+    void postNonLinearSolverConcreteProcess(GlobalVector const& x,
+                                            const double t,
+                                            int const process_id) override;
+    
 private:
     TMPhaseFieldProcessData<DisplacementDim> _process_data;
 
-    std::vector<std::unique_ptr<TMPhaseFieldLocalAssemblerInterface>> _local_assemblers;
+    std::vector<std::unique_ptr<TMPhaseFieldLocalAssemblerInterface>>
+        _local_assemblers;
 
     std::unique_ptr<NumLib::LocalToGlobalIndexMap>
-            _local_to_global_index_map_single_component;
+        _local_to_global_index_map_single_component;
 
     /// Sparsity pattern for the phase field equation, and it is initialized
     //  only if the staggered scheme is used.
     GlobalSparsityPattern _sparsity_pattern_with_single_component;
+    
+    /// ID of the processes that contains mechanical process.
+    int const _mechanics_related_process_id;
+
+    /// ID of phase field process.
+    int const _phase_field_process_id;
+
+    /// ID of heat conduction process.
+    int const _heat_conduction_process_id;
 };
 
 extern template class TMPhaseFieldProcess<2>;
