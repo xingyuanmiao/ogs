@@ -83,7 +83,11 @@ private:
     void postNonLinearSolverConcreteProcess(GlobalVector const& x,
                                             const double t,
                                             int const process_id) override;
-    
+
+    // To be replaced.
+    NumLib::LocalToGlobalIndexMap& getDOFTableByProcessID(
+        const int process_id) const;
+
 private:
     TMPhaseFieldProcessData<DisplacementDim> _process_data;
 
@@ -96,7 +100,7 @@ private:
     /// Sparsity pattern for the phase field equation, and it is initialized
     //  only if the staggered scheme is used.
     GlobalSparsityPattern _sparsity_pattern_with_single_component;
-    
+
     /// ID of the processes that contains mechanical process.
     int const _mechanics_related_process_id;
 

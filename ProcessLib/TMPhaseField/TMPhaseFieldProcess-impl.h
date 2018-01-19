@@ -89,6 +89,20 @@ TMPhaseFieldProcess<DisplacementDim>::getDOFTable(const int process_id) const
 }
 
 template <int DisplacementDim>
+NumLib::LocalToGlobalIndexMap&
+TMPhaseFieldProcess<DisplacementDim>::getDOFTableByProcessID(
+    const int process_id) const
+{
+    if (process_id == _mechanics_related_process_id)
+    {
+        return *_local_to_global_index_map;
+    }
+
+    // For the equation of phasefield or heat conduction.
+    return *_local_to_global_index_map_single_component;
+}
+
+template <int DisplacementDim>
 void TMPhaseFieldProcess<DisplacementDim>::constructDofTable()
 {
     // Create single component dof in every of the mesh's nodes.
@@ -267,13 +281,15 @@ void TMPhaseFieldProcess<DisplacementDim>::initializeBoundaryConditions()
     // Staggered scheme:
     // for the equations of temperature-deformation.
     initializeProcessBoundaryConditionsAndSourceTerms(
-        *_local_to_global_index_map, _mechanics_related_process_id);
+        getDOFTableByProcessID(_mechanics_related_process_id),
+        _mechanics_related_process_id);
     // for the phase field
     initializeProcessBoundaryConditionsAndSourceTerms(
-        *_local_to_global_index_map_single_component, _phase_field_process_id);
+        getDOFTableByProcessID(_phase_field_process_id),
+        _phase_field_process_id);
     // for heat conduction
     initializeProcessBoundaryConditionsAndSourceTerms(
-        *_local_to_global_index_map_single_component,
+        getDOFTableByProcessID(_heat_conduction_process_id),
         _heat_conduction_process_id);
 }
 
@@ -306,7 +322,7 @@ void TMPhaseFieldProcess<DisplacementDim>::assembleWithJacobianConcreteProcess(
         DBUG("AssembleJacobian TMPhaseFieldProcess for the monolithic scheme.");
         dof_tables.emplace_back(*_local_to_global_index_map);
     }
-
+    else
     {
         // For the staggered scheme
         if (_coupled_solutions->process_id == _mechanics_related_process_id)
@@ -330,9 +346,12 @@ void TMPhaseFieldProcess<DisplacementDim>::assembleWithJacobianConcreteProcess(
                 "heat conduction in "
                 "TMPhaseFieldProcess for the staggered scheme.");
         }
-        dof_tables.emplace_back(*_local_to_global_index_map_single_component);
-        dof_tables.emplace_back(*_local_to_global_index_map);
-        dof_tables.emplace_back(*_local_to_global_index_map_single_component);
+        dof_tables.emplace_back(
+            getDOFTableByProcessID(_heat_conduction_process_id));
+        dof_tables.emplace_back(
+            getDOFTableByProcessID(_mechanics_related_process_id));
+        dof_tables.emplace_back(
+            getDOFTableByProcessID(_phase_field_process_id));
     }
 
     GlobalExecutor::executeMemberDereferenced(
