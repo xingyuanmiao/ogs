@@ -60,7 +60,8 @@ struct IntegrationPointData final
 
     MaterialLib::Solids::MechanicsBase<DisplacementDim>& solid_material;
     std::unique_ptr<typename MaterialLib::Solids::MechanicsBase<
-        DisplacementDim>::MaterialStateVariables> material_state_variables;
+        DisplacementDim>::MaterialStateVariables>
+        material_state_variables;
 
     typename BMatricesType::KelvinMatrixType C_tensile, C_compressive;
     double integration_weight;
@@ -82,30 +83,28 @@ struct IntegrationPointData final
 
     static const int kelvin_vector_size =
         KelvinVectorDimensions<DisplacementDim>::value;
-    using Invariants =
-        MaterialLib::SolidModels::Invariants<kelvin_vector_size>;
+    using Invariants = MaterialLib::SolidModels::Invariants<kelvin_vector_size>;
 
     template <typename DisplacementVectorType>
-    void updateConstitutiveRelation(
-        double const t,
-        SpatialPosition const& x_position,
-        double const dt,
-        DisplacementVectorType const& u,
-        double const alpha,
-        double const delta_T,
-        double const degradation)
+    void updateConstitutiveRelation(double const t,
+                                    SpatialPosition const& x_position,
+                                    double const dt,
+                                    DisplacementVectorType const& u,
+                                    double const alpha,
+                                    double const delta_T,
+                                    double const degradation)
     {
         eps_m.noalias() = eps - alpha * delta_T * Invariants::identity2;
-        solid_material.integrateStress(
-            t, x_position, dt, eps_m_prev, eps_m, sigma_prev,
-            *material_state_variables);
+        solid_material.integrateStress(t, x_position, dt, eps_m_prev, eps_m,
+                                       sigma_prev, *material_state_variables);
 
-        static_cast<MaterialLib::Solids::TMPhaseFieldExtension<DisplacementDim>&>(
+        static_cast<
+            MaterialLib::Solids::TMPhaseFieldExtension<DisplacementDim>&>(
             solid_material)
             .calculateDegradedStress(t, x_position, eps_m,
-                             strain_energy_tensile, sigma_tensile,
-                             sigma_compressive, C_tensile, C_compressive,
-                             sigma_real, degradation);
+                                     strain_energy_tensile, sigma_tensile,
+                                     sigma_compressive, C_tensile,
+                                     C_compressive, sigma_real, degradation);
     }
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 };
@@ -139,8 +138,9 @@ public:
         ShapeFunction::NPOINTS + ShapeFunction::NPOINTS * DisplacementDim>;
 
     using LocalAssemblerTraits = ProcessLib::LocalAssemblerTraits<
-            ShapeMatricesType, ShapeFunction::NPOINTS,
-            2 * ShapeFunction::NPOINTS + ShapeFunction::NPOINTS * DisplacementDim, DisplacementDim>;
+        ShapeMatricesType, ShapeFunction::NPOINTS,
+        2 * ShapeFunction::NPOINTS + ShapeFunction::NPOINTS * DisplacementDim,
+        DisplacementDim>;
 
     using NodalMatrixType = typename LocalAssemblerTraits::LocalMatrix;
     using NodalVectorType = typename LocalAssemblerTraits::LocalVector;
@@ -154,11 +154,17 @@ public:
         std::size_t const /*local_matrix_size*/,
         bool const is_axially_symmetric,
         unsigned const integration_order,
-        TMPhaseFieldProcessData<DisplacementDim>& process_data)
+        TMPhaseFieldProcessData<DisplacementDim>& process_data,
+        int const mechanics_related_process_id,
+        int const phase_field_process_id,
+        int const heat_conduction_process_id)
         : _process_data(process_data),
           _integration_method(integration_order),
           _element(e),
-          _is_axially_symmetric(is_axially_symmetric)
+          _is_axially_symmetric(is_axially_symmetric),
+          _mechanics_related_process_id(mechanics_related_process_id),
+          _phase_field_process_id(phase_field_process_id),
+          _heat_conduction_process_id(heat_conduction_process_id)
     {
         unsigned const n_integration_points =
             _integration_method.getNumberOfPoints();
@@ -191,7 +197,7 @@ public:
             ip_data.eps_m_prev.resize(kelvin_vector_size);
             ip_data.C_tensile.setZero(kelvin_vector_size, kelvin_vector_size);
             ip_data.C_compressive.setZero(kelvin_vector_size,
-                                         kelvin_vector_size);
+                                          kelvin_vector_size);
             ip_data.sigma_tensile.setZero(kelvin_vector_size);
             ip_data.sigma_compressive.setZero(kelvin_vector_size);
             ip_data.history_variable =
@@ -226,11 +232,19 @@ public:
                               std::vector<double>& local_rhs_data,
                               std::vector<double>& local_Jac_data) override;
 
+    void assembleWithJacobianForStaggeredScheme(
+        double const t, std::vector<double> const& local_xdot,
+        const double dxdot_dx, const double dx_dx,
+        std::vector<double>& local_M_data, std::vector<double>& local_K_data,
+        std::vector<double>& local_b_data, std::vector<double>& local_Jac_data,
+        LocalCoupledSolutions const& local_coupled_solutions) override;
+
     /*void computeSecondaryVariableConcrete(
             const double t, std::vector<double> const& local_x) override
         {
             auto const local_matrix_size = local_x.size();
-            assert(local_matrix_size == temperature_size + phasefield_size + displacement_size);
+            assert(local_matrix_size == temperature_size + phasefield_size +
+       displacement_size);
 
             auto d = Eigen::Map<typename ShapeMatricesType::template VectorType<
                 phasefield_size> const>(local_x.data() + phasefield_index,
@@ -250,10 +264,13 @@ public:
                 auto const& dNdx = _ip_data[ip].dNdx;
                 auto const& N = _ip_data[ip].N;
                 double const d_ip = N.dot(d);
-                auto const lambda = _process_data.thermal_conductivity(t, x_position)[0];
-                auto const lambda_res = _process_data.residual_thermal_conductivity(t, x_position)[0];
+                auto const lambda = _process_data.thermal_conductivity(t,
+       x_position)[0];
+                auto const lambda_res =
+       _process_data.residual_thermal_conductivity(t, x_position)[0];
                 // heat flux only computed for output.
-                GlobalDimVectorType const heat_flux = -(d_ip*d_ip*lambda + (1 - d_ip)*(1 - d_ip)*lambda_res) * dNdx * local_x_vec;
+                GlobalDimVectorType const heat_flux = -(d_ip*d_ip*lambda + (1 -
+       d_ip)*(1 - d_ip)*lambda_res) * dNdx * local_x_vec;
 
                 for (unsigned dm = 0; dm < DisplacementDim; ++dm)
                 {
@@ -410,15 +427,15 @@ public:
 
         cache.clear();
         auto cache_matrix = MathLib::createZeroedMatrix<Eigen::Matrix<
-        double, DisplacementDim, Eigen::Dynamic, Eigen::RowMajor>>(
-        cache, DisplacementDim, num_intpts);
+            double, DisplacementDim, Eigen::Dynamic, Eigen::RowMajor>>(
+            cache, DisplacementDim, num_intpts);
 
         SpatialPosition pos;
         pos.setElementID(_element.getID());
 
         auto T = Eigen::Map<typename ShapeMatricesType::template VectorType<
             temperature_size> const>(local_x.data() + temperature_index,
-                                    temperature_size);
+                                     temperature_size);
 
         auto d = Eigen::Map<typename ShapeMatricesType::template VectorType<
             phasefield_size> const>(local_x.data() + phasefield_index,
@@ -435,12 +452,15 @@ public:
             auto const& dNdx = _ip_data[ip].dNdx;
             auto const& N = _ip_data[ip].N;
             double const d_ip = N.dot(d);
-            auto const lambda = _process_data.thermal_conductivity(t, x_position)[0];
-            auto const lambda_res = _process_data.residual_thermal_conductivity(t, x_position)[0];
+            auto const lambda =
+                _process_data.thermal_conductivity(t, x_position)[0];
+            auto const lambda_res =
+                _process_data.residual_thermal_conductivity(t, x_position)[0];
 
             // Compute the heat flux
             cache_matrix.col(ip).noalias() =
-                -(d_ip*d_ip*lambda + (1 - d_ip)*(1 - d_ip)*lambda_res) * dNdx * T;
+                -(d_ip * d_ip * lambda + (1 - d_ip) * (1 - d_ip) * lambda_res) *
+                dNdx * T;
         }
 
         return cache;
@@ -478,6 +498,27 @@ private:
         return cache;
     }
 
+    void assembleWithJacobianForDeformationEquations(
+        double const t, std::vector<double> const& local_xdot,
+        const double dxdot_dx, const double dx_dx,
+        std::vector<double>& local_M_data, std::vector<double>& local_K_data,
+        std::vector<double>& local_b_data, std::vector<double>& local_Jac_data,
+        LocalCoupledSolutions const& local_coupled_solutions);
+
+    void assembleWithJacobianForHeatConductionEquations(
+        double const t, std::vector<double> const& local_xdot,
+        const double dxdot_dx, const double dx_dx,
+        std::vector<double>& local_M_data, std::vector<double>& local_K_data,
+        std::vector<double>& local_b_data, std::vector<double>& local_Jac_data,
+        LocalCoupledSolutions const& local_coupled_solutions);
+
+    void assembleWithJacobianForPhaseFieldEquations(
+        double const t, std::vector<double> const& local_xdot,
+        const double dxdot_dx, const double dx_dx,
+        std::vector<double>& local_M_data, std::vector<double>& local_K_data,
+        std::vector<double>& local_b_data, std::vector<double>& local_Jac_data,
+        LocalCoupledSolutions const& local_coupled_solutions);
+
     TMPhaseFieldProcessData<DisplacementDim>& _process_data;
 
     std::vector<
@@ -500,6 +541,15 @@ private:
         ShapeFunction::NPOINTS * DisplacementDim;
     static const int kelvin_vector_size =
         KelvinVectorDimensions<DisplacementDim>::value;
+
+    /// ID of the processes that contains mechanical process.
+    int const _mechanics_related_process_id;
+
+    /// ID of phase field process.
+    int const _phase_field_process_id;
+
+    /// ID of heat conduction process.
+    int const _heat_conduction_process_id;
 };
 
 /*template <typename ShapeFunction, typename IntegrationMethod,

@@ -181,7 +181,9 @@ void TMPhaseFieldProcess<DisplacementDim>::initializeConcreteProcess(
     ProcessLib::SmallDeformation::createLocalAssemblers<
         DisplacementDim, TMPhaseFieldLocalAssembler>(
         mesh.getElements(), dof_table, _local_assemblers,
-        mesh.isAxiallySymmetric(), integration_order, _process_data);
+        mesh.isAxiallySymmetric(), integration_order, _process_data,
+        _mechanics_related_process_id, _phase_field_process_id,
+        _heat_conduction_process_id);
 
     Base::_secondary_variables.addSecondaryVariable(
         "sigma_xx",
