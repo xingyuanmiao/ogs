@@ -57,6 +57,7 @@ struct IntegrationPointData final
     typename BMatricesType::KelvinVectorType sigma_tensile, sigma_compressive,
         sigma_real_prev, sigma_real;
     double strain_energy_tensile;
+    typename ShapeMatrixType::GlobalDimVectorType heatflux, heatflux_prev;
 
     MaterialLib::Solids::MechanicsBase<DisplacementDim>& solid_material;
     std::unique_ptr<typename MaterialLib::Solids::MechanicsBase<
@@ -74,6 +75,7 @@ struct IntegrationPointData final
         {
             history_variable_prev = history_variable;
         }
+        heatflux_prev = heatflux;
         eps_m_prev = eps_m;
         eps_prev = eps;
         sigma_prev = sigma;
@@ -190,16 +192,18 @@ public:
                 shape_matrices[ip].integralMeasure * shape_matrices[ip].detJ;
 
             ip_data.sigma.setZero(kelvin_vector_size);
-            ip_data.sigma_prev.resize(kelvin_vector_size);
+            ip_data.sigma_prev.setZero(kelvin_vector_size);
             ip_data.eps.setZero(kelvin_vector_size);
-            ip_data.eps_prev.resize(kelvin_vector_size);
+            ip_data.eps_prev.setZero(kelvin_vector_size);
             ip_data.eps_m.setZero(kelvin_vector_size);
-            ip_data.eps_m_prev.resize(kelvin_vector_size);
+            ip_data.eps_m_prev.setZero(kelvin_vector_size);
             ip_data.C_tensile.setZero(kelvin_vector_size, kelvin_vector_size);
             ip_data.C_compressive.setZero(kelvin_vector_size,
                                           kelvin_vector_size);
             ip_data.sigma_tensile.setZero(kelvin_vector_size);
             ip_data.sigma_compressive.setZero(kelvin_vector_size);
+            ip_data.heatflux.setZero();
+            ip_data.heatflux_prev.setZero();
             ip_data.history_variable =
                 process_data.history_field(0, x_position)[0];
             ip_data.history_variable_prev =
@@ -414,57 +418,93 @@ public:
     }
 
     std::vector<double> const& getIntPtHeatFlux(
-        const double t,
-        GlobalVector const& current_solution,
-        NumLib::LocalToGlobalIndexMap const& dof_table,
+        const double /*t*/,
+        GlobalVector const& /*current_solution*/,
+        NumLib::LocalToGlobalIndexMap const& /*dof_table*/,
         std::vector<double>& cache) const override
     {
+        using KelvinVectorType = typename BMatricesType::KelvinVectorType;
+//        auto const kelvin_vector_size =
+//            KelvinVectorDimensions<DisplacementDim>::value;
         auto const num_intpts = _ip_data.size();
 
-        auto const indices = NumLib::getIndices(_element.getID(), dof_table);
-        assert(!indices.empty());
-        auto const local_x = current_solution.get(indices);
-
         cache.clear();
-        auto cache_matrix = MathLib::createZeroedMatrix<Eigen::Matrix<
+        auto cache_mat = MathLib::createZeroedMatrix<Eigen::Matrix<
             double, DisplacementDim, Eigen::Dynamic, Eigen::RowMajor>>(
             cache, DisplacementDim, num_intpts);
 
-        SpatialPosition pos;
-        pos.setElementID(_element.getID());
-
-        auto T = Eigen::Map<typename ShapeMatricesType::template VectorType<
-            temperature_size> const>(local_x.data() + temperature_index,
-                                     temperature_size);
-
-        auto d = Eigen::Map<typename ShapeMatricesType::template VectorType<
-            phasefield_size> const>(local_x.data() + phasefield_index,
-                                    phasefield_size);
-
-        unsigned const n_integration_points =
-            _integration_method.getNumberOfPoints();
-
-        SpatialPosition x_position;
-        x_position.setElementID(_element.getID());
-        for (unsigned ip = 0; ip < n_integration_points; ip++)
+        // TODO make a general implementation for converting KelvinVectors
+        // back to symmetric rank-2 tensors.
+        for (unsigned ip = 0; ip < num_intpts; ++ip)
         {
-            x_position.setIntegrationPoint(ip);
-            auto const& dNdx = _ip_data[ip].dNdx;
-            auto const& N = _ip_data[ip].N;
-            double const d_ip = N.dot(d);
-            auto const lambda =
-                _process_data.thermal_conductivity(t, x_position)[0];
-            auto const lambda_res =
-                _process_data.residual_thermal_conductivity(t, x_position)[0];
+            auto const& heatflux = _ip_data[ip].heatflux;
 
-            // Compute the heat flux
-            cache_matrix.col(ip).noalias() =
-                -(d_ip * d_ip * lambda + (1 - d_ip) * (1 - d_ip) * lambda_res) *
-                dNdx * T;
+            for (typename KelvinVectorType::Index component = 0;
+                 component < DisplacementDim;
+                 ++component)
+            {  // x, y, z components
+                cache_mat(component, ip) = heatflux[component];
+            }
         }
 
         return cache;
     }
+
+
+//    std::vector<double> const& getIntPtHeatFlux(
+//        const double t,
+//        GlobalVector const& current_solution,
+//        NumLib::LocalToGlobalIndexMap const& dof_table,
+//        std::vector<double>& cache) const override
+//    {
+//        auto const num_intpts = _ip_data.size();
+
+//        auto const indices = NumLib::getIndices(_element.getID(), dof_table);
+//        assert(!indices.empty());
+//        auto const local_x = current_solution.get(indices);
+
+//        cache.clear();
+//        auto cache_matrix = MathLib::createZeroedMatrix<Eigen::Matrix<
+//            double, DisplacementDim, Eigen::Dynamic, Eigen::RowMajor>>(
+//            cache, DisplacementDim, num_intpts);
+
+//        SpatialPosition pos;
+//        pos.setElementID(_element.getID());
+
+//        auto T = Eigen::Map<typename ShapeMatricesType::template VectorType<
+//            temperature_size> const>(local_x.data() + temperature_index,
+//                                     temperature_size);
+
+//        auto d = Eigen::Map<typename ShapeMatricesType::template VectorType<
+//            phasefield_size> const>(local_x.data() + phasefield_index,
+//                                    phasefield_size);
+
+//        unsigned const n_integration_points =
+//            _integration_method.getNumberOfPoints();
+
+//        SpatialPosition x_position;
+//        x_position.setElementID(_element.getID());
+//        for (unsigned ip = 0; ip < n_integration_points; ip++)
+//        {
+//            x_position.setIntegrationPoint(ip);
+//            auto const& dNdx = _ip_data[ip].dNdx;
+//            auto const& N = _ip_data[ip].N;
+//            double const d_ip = N.dot(d);
+//            auto const lambda =
+//                _process_data.thermal_conductivity(t, x_position)[0];
+//            auto const lambda_res =
+//                _process_data.residual_thermal_conductivity(t, x_position)[0];
+
+//            // Compute the heat flux
+//            cache_matrix.col(ip).noalias() =
+//                -(d_ip * d_ip * lambda + (1 - d_ip) * (1 - d_ip) * lambda_res) *
+//                dNdx * T;
+//            std::cout << "phasefield" << d << std::endl;
+//            std::cout << "temperature" << T << std::endl;
+//        }
+
+//        return cache;
+//    }
 
 private:
     std::vector<double> const& getIntPtSigma(std::vector<double>& cache,

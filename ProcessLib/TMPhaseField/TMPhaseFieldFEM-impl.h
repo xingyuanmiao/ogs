@@ -320,6 +320,66 @@ void TMPhaseFieldLocalAssembler<ShapeFunction, IntegrationMethod,
         .noalias() += KuT * T;
 }
 
+//template <typename ShapeFunction, typename IntegrationMethod,
+//          int DisplacementDim>
+//std::vector<double> const&
+//TMPhaseFieldLocalAssembler<ShapeFunction, IntegrationMethod,
+//                                DisplacementDim>::
+//    getIntPtHeatFlux(
+//        const double t,
+//        GlobalVector const& current_solution,
+//        NumLib::LocalToGlobalIndexMap const& dof_table,
+//        std::vector<double>& cache) const
+//{
+//    auto const num_intpts = _ip_data.size();
+
+//    auto const indices = NumLib::getIndices(_element.getID(), dof_table);
+//    assert(!indices.empty());
+//    auto const local_x = current_solution.get(indices);
+
+//    cache.clear();
+//    auto cache_matrix = MathLib::createZeroedMatrix<Eigen::Matrix<
+//            double, DisplacementDim, Eigen::Dynamic, Eigen::RowMajor>>(
+//                cache, DisplacementDim, num_intpts);
+
+//    SpatialPosition pos;
+//    pos.setElementID(_element.getID());
+
+//    auto T = Eigen::Map<typename ShapeMatricesType::template VectorType<
+//            temperature_size> const>(local_x.data() + temperature_index,
+//                                     temperature_size);
+
+//    auto d = Eigen::Map<typename ShapeMatricesType::template VectorType<
+//            phasefield_size> const>(local_x.data() + phasefield_index,
+//                                    phasefield_size);
+
+//    unsigned const n_integration_points =
+//            _integration_method.getNumberOfPoints();
+
+//    SpatialPosition x_position;
+//    x_position.setElementID(_element.getID());
+//    for (unsigned ip = 0; ip < n_integration_points; ip++)
+//    {
+//        x_position.setIntegrationPoint(ip);
+//        auto const& dNdx = _ip_data[ip].dNdx;
+//        auto const& N = _ip_data[ip].N;
+//        double const d_ip = N.dot(d);
+//        auto const lambda =
+//                _process_data.thermal_conductivity(t, x_position)[0];
+//        auto const lambda_res =
+//                _process_data.residual_thermal_conductivity(t, x_position)[0];
+
+//        // Compute the heat flux
+//        cache_matrix.col(ip).noalias() =
+//                -(d_ip * d_ip * lambda + (1 - d_ip) * (1 - d_ip) * lambda_res) *
+//                dNdx * T;
+//        std::cout << "phasefield" << d << std::endl;
+//        std::cout << "temperature" << T << std::endl;
+//    }
+
+//    return cache;
+//}
+
 template <typename ShapeFunction, typename IntegrationMethod,
           int DisplacementDim>
 void TMPhaseFieldLocalAssembler<ShapeFunction, IntegrationMethod,
@@ -446,6 +506,7 @@ void TMPhaseFieldLocalAssembler<ShapeFunction, IntegrationMethod,
 
         double const d_ip = N.dot(d);
         double const degradation = d_ip * d_ip * (1 - k) + k;
+        // std::cout << "phasefield_stag_u" << d << std::endl;
         auto const C_eff = degradation * C_tensile + C_compressive;
         eps.noalias() = B * u;
         _ip_data[ip].updateConstitutiveRelation(t, x_position, dt, u, alpha,
@@ -533,6 +594,7 @@ void TMPhaseFieldLocalAssembler<ShapeFunction, IntegrationMethod,
         auto const& dNdx = _ip_data[ip].dNdx;
 
         auto& eps_m = _ip_data[ip].eps_m;
+        auto& heatflux = _ip_data[ip].heatflux;
 
         auto rho_sr = _process_data.solid_density(t, x_position)[0];
         auto const alpha = _process_data.linear_thermal_expansion_coefficient(
@@ -570,6 +632,8 @@ void TMPhaseFieldLocalAssembler<ShapeFunction, IntegrationMethod,
                                         dNdx * T * d_ip) * w;*/
             local_rhs.noalias() -= (N.transpose() * rho_s * c * T_dot_ip +
                     dNdx.transpose() * lambda_eff * dNdx * T) * w;
+
+            heatflux.noalias() = - (lambda_eff * dNdx * T) * w;
         }
         else
         {
@@ -578,12 +642,15 @@ void TMPhaseFieldLocalAssembler<ShapeFunction, IntegrationMethod,
 
             local_rhs.noalias() -= (N.transpose() * rho_s * c * T_dot_ip +
                     dNdx.transpose() * lambda * dNdx * T) * w;
+
+            heatflux.noalias() = - (lambda * dNdx * T) * w;
         }
         /*local_Jac.noalias() += (dNdx.transpose() * lambda * dNdx +
                                 N.transpose() * rho_s * c * N / dt) * w;
 
         local_rhs.noalias() -= (N.transpose() * rho_s * c * T_dot_ip +
                                 dNdx.transpose() * lambda * dNdx * T) * w;*/
+        // std::cout << "phasefield_stag_T" << d << std::endl;
     }
 }
 
@@ -613,8 +680,8 @@ void TMPhaseFieldLocalAssembler<ShapeFunction, IntegrationMethod,
         typename ShapeMatricesType::template VectorType<phasefield_size> const>(
         local_d.data(), phasefield_size);
 
-    auto T = Eigen::Map<typename ShapeMatricesType::template VectorType<
-        temperature_size> const>(local_T.data(), temperature_size);
+//    auto T = Eigen::Map<typename ShapeMatricesType::template VectorType<
+//        temperature_size> const>(local_T.data(), temperature_size);
 
     auto local_Jac = MathLib::createZeroedMatrix<
         typename ShapeMatricesType::template MatrixType<
@@ -637,15 +704,15 @@ void TMPhaseFieldLocalAssembler<ShapeFunction, IntegrationMethod,
         auto const& N = _ip_data[ip].N;
         auto const& dNdx = _ip_data[ip].dNdx;
 
-        auto const& sigma_tensile = _ip_data[ip].sigma_tensile;
+        // auto const& sigma_tensile = _ip_data[ip].sigma_tensile;
         auto const& strain_energy_tensile = _ip_data[ip].strain_energy_tensile;
 
         auto const gc = _process_data.crack_resistance(t, x_position)[0];
         auto const ls = _process_data.crack_length_scale(t, x_position)[0];
-        auto const alpha = _process_data.linear_thermal_expansion_coefficient(
-            t, x_position)[0];
+        // auto const alpha = _process_data.linear_thermal_expansion_coefficient(
+        //     t, x_position)[0];
 
-        double const T_ip = N.dot(T);
+        // double const T_ip = N.dot(T);
         double const d_ip = N.dot(d);
 
         using Invariants =
