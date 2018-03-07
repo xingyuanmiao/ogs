@@ -19,7 +19,7 @@
 #include "NonuniformNeumannBoundaryCondition.h"
 #include "NormalTractionBoundaryCondition.h"
 #include "RobinBoundaryCondition.h"
-#include "SolutionDependentDirichletBoundaryCondition.h"
+#include "PhaseFieldIrreversibleDamageOracleBoundaryCondition.h"
 
 namespace ProcessLib
 {
@@ -64,9 +64,9 @@ BoundaryConditionBuilder::createBoundaryCondition(
             shapefunction_order);
     }
 
-    if (type == "SolutionDependentDirichlet")
+    if (type == "PhaseFieldIrreversibleDamageOracleBoundaryCondition")
      {
-             return createSolutionDependentDirichletBoundaryCondition(
+             return createPhaseFieldIrreversibleDamageOracleBoundaryCondition(
                  config, dof_table, mesh, variable_id, integration_order,
                  shapefunction_order, parameters);
      }
@@ -238,7 +238,7 @@ BoundaryConditionBuilder::createNormalTractionBoundaryCondition(
 }
 
 std::unique_ptr<BoundaryCondition>
- BoundaryConditionBuilder::createSolutionDependentDirichletBoundaryCondition(
+ BoundaryConditionBuilder::createPhaseFieldIrreversibleDamageOracleBoundaryCondition(
      const BoundaryConditionConfig& config,
      const NumLib::LocalToGlobalIndexMap& dof_table, const MeshLib::Mesh& mesh,
      const int variable_id, const unsigned /*integration_order*/,
@@ -246,7 +246,7 @@ std::unique_ptr<BoundaryCondition>
      const std::vector<
          std::unique_ptr<ProcessLib::ParameterBase>>& /*parameters*/)
  {
-     return ProcessLib::createSolutionDependentDirichletBoundaryCondition(
+     return ProcessLib::createPhaseFieldIrreversibleDamageOracleBoundaryCondition(
          config.config, dof_table, mesh, variable_id, *config.component_id);
  }
 

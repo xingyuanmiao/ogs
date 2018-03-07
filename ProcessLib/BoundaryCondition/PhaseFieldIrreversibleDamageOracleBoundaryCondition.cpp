@@ -7,7 +7,7 @@
  *
  */
 
-#include "SolutionDependentDirichletBoundaryCondition.h"
+#include "PhaseFieldIrreversibleDamageOracleBoundaryCondition.h"
 
 #include <algorithm>
 #include <logog/include/logog.hpp>
@@ -16,7 +16,7 @@
 
 namespace ProcessLib
 {
-void SolutionDependentDirichletBoundaryCondition::getEssentialBCValues(
+void PhaseFieldIrreversibleDamageOracleBoundaryCondition::getEssentialBCValues(
     const double /*t*/, NumLib::IndexValueVector<GlobalIndexType>& bc_values) const
 {
     SpatialPosition pos;
@@ -36,10 +36,10 @@ void SolutionDependentDirichletBoundaryCondition::getEssentialBCValues(
 }
 
 // update new values and corresponding indices.
-void SolutionDependentDirichletBoundaryCondition::preTimestep(
+void PhaseFieldIrreversibleDamageOracleBoundaryCondition::preTimestep(
     const double /*t*/, const GlobalVector& x)
 {
-    double irrevDamage = 0.05;
+    double irreversibleDamage = 0.05;
 
     _bc_values.ids.clear();
     _bc_values.values.clear();
@@ -48,12 +48,12 @@ void SolutionDependentDirichletBoundaryCondition::preTimestep(
     auto const& nodes = _mesh.getNodes();
     for (auto const* n : nodes)
     {
-        std::size_t id = n->getID();
-        MeshLib::Location l(mesh_id, MeshLib::MeshItemType::Node, id);
+        std::size_t node_id = n->getID();
+        MeshLib::Location l(mesh_id, MeshLib::MeshItemType::Node, node_id);
         const auto g_idx =
             _dof_table.getGlobalIndex(l, _variable_id, _component_id);
 
-        if (x[id] <= irrevDamage)
+        if (x[node_id] <= irreversibleDamage)
         {
             _bc_values.ids.emplace_back(g_idx);
             _bc_values.values.emplace_back(0.0);
@@ -61,19 +61,19 @@ void SolutionDependentDirichletBoundaryCondition::preTimestep(
     }
 }
 
-std::unique_ptr<SolutionDependentDirichletBoundaryCondition>
-createSolutionDependentDirichletBoundaryCondition(
+std::unique_ptr<PhaseFieldIrreversibleDamageOracleBoundaryCondition>
+createPhaseFieldIrreversibleDamageOracleBoundaryCondition(
     BaseLib::ConfigTree const& config,
     NumLib::LocalToGlobalIndexMap const& dof_table, MeshLib::Mesh const& mesh,
     int const variable_id, int const component_id)
 {
     DBUG(
-        "Constructing SolutionDependentDirichletBoundaryCondition from "
+        "Constructing PhaseFieldIrreversibleDamageOracleBoundaryCondition from "
         "config.");
     //! \ogs_file_param{prj__process_variables__process_variable__boundary_conditions__boundary_condition__type}
-    config.checkConfigParameter("type", "SolutionDependentDirichlet");
+    config.checkConfigParameter("type", "PhaseFieldIrreversibleDamageOracleBoundaryCondition");
 
-    return std::make_unique<SolutionDependentDirichletBoundaryCondition>(
+    return std::make_unique<PhaseFieldIrreversibleDamageOracleBoundaryCondition>(
         dof_table, mesh, variable_id, component_id);
 }
 

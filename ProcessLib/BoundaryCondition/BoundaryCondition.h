@@ -121,7 +121,7 @@ protected:
           &parameters);
 
   virtual std::unique_ptr<BoundaryCondition>
-  createSolutionDependentDirichletBoundaryCondition(
+  createPhaseFieldIrreversibleDamageOracleBoundaryCondition(
       const BoundaryConditionConfig &config,
       const NumLib::LocalToGlobalIndexMap &dof_table, const MeshLib::Mesh &mesh,
       const int variable_id, const unsigned /*integration_order*/,

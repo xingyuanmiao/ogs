@@ -16,12 +16,11 @@
 
 namespace ProcessLib
 {
-/// TODO docu
-class SolutionDependentDirichletBoundaryCondition final
+class PhaseFieldIrreversibleDamageOracleBoundaryCondition final
     : public BoundaryCondition
 {
 public:
-    SolutionDependentDirichletBoundaryCondition(
+    PhaseFieldIrreversibleDamageOracleBoundaryCondition(
 
         NumLib::LocalToGlobalIndexMap const& dof_table,
         MeshLib::Mesh const& mesh, int const variable_id,
@@ -61,8 +60,8 @@ private:
     NumLib::IndexValueVector<GlobalIndexType> _bc_values;
 };
 
-std::unique_ptr<SolutionDependentDirichletBoundaryCondition>
-createSolutionDependentDirichletBoundaryCondition(
+std::unique_ptr<PhaseFieldIrreversibleDamageOracleBoundaryCondition>
+createPhaseFieldIrreversibleDamageOracleBoundaryCondition(
     BaseLib::ConfigTree const& config,
     NumLib::LocalToGlobalIndexMap const& dof_table, MeshLib::Mesh const& mesh,
     int const variable_id, int const component_id);
