@@ -61,8 +61,6 @@
 #endif
 #ifdef OGS_BUILD_PROCESS_PHASEFIELD
 #include "ProcessLib/PhaseField/CreatePhaseFieldProcess.h"
-#endif
-#ifdef OGS_BUILD_PROCESS_RICHARDSCOMPONENTTRANSPORT
 #include "ProcessLib/RichardsComponentTransport/CreateRichardsComponentTransportProcess.h"
 #endif
 #ifdef OGS_BUILD_PROCESS_RICHARDSFLOW
