@@ -44,6 +44,41 @@ namespace PhaseField
  * Detailed model description can refer
  * <a href="Miao_Biot2017.pdff" target="_blank"><b>Phase field method</b></a>
  */
+struct SigmaIntegrationPointWriter final : public IntegrationPointWriter
+{
+    explicit SigmaIntegrationPointWriter(
+        int const n_components,
+        int const integration_order,
+        std::function<std::vector<std::vector<double>>()>
+            callback)
+        : _n_components(n_components),
+          _integration_order(integration_order),
+          _callback(callback)
+    {
+    }
+
+    int numberOfComponents() const override { return _n_components; }
+    int integrationOrder() const override { return _integration_order; }
+
+    std::string name() const override
+    {
+        // TODO (naumov) remove ip suffix. Probably needs modification of the
+        // mesh properties, s.t. there is no "overlapping" with cell/point data.
+        // See getOrCreateMeshProperty.
+        return "sigma_ip";
+    }
+
+    std::vector<std::vector<double>> values() const override
+    {
+        return _callback();
+    }
+
+private:
+    int const _n_components;
+    int const _integration_order;
+    std::function<std::vector<std::vector<double>>()> _callback;
+};
+
 template <int DisplacementDim>
 class PhaseFieldProcess final : public Process
 {
@@ -73,7 +108,7 @@ public:
         const int process_id) const override;
 
 private:
-    using LocalAssemblerInterface = PhaseFieldLocalAssemblerInterface;
+    using LocalAssemblerInterface = PhaseFieldLocalAssemblerInterface<DisplacementDim>;
 
     void constructDofTable() override;
 
@@ -114,7 +149,7 @@ private:
         _local_to_global_index_map_single_component;
 
     MeshLib::PropertyVector<double>* _nodal_forces = nullptr;
-
+    std::unique_ptr<GlobalVector> _material_forces;
     /// Sparsity pattern for the phase field equation, and it is initialized
     ///  only if the staggered scheme is used.
     GlobalSparsityPattern _sparsity_pattern_with_single_component;

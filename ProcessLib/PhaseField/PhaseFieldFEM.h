@@ -12,13 +12,19 @@
 #include <memory>
 #include <vector>
 
+#include "MaterialLib/SolidModels/LinearElasticIsotropicPhaseField.h"
 #include "MaterialLib/SolidModels/PhaseFieldExtension.h"
 #include "MathLib/LinAlg/Eigen/EigenMapTools.h"
+#include "NumLib/Extrapolation/ExtrapolatableElement.h"
 #include "NumLib/Fem/FiniteElement/TemplateIsoparametric.h"
 #include "NumLib/Fem/ShapeMatrixPolicy.h"
 #include "ProcessLib/Deformation/BMatrixPolicy.h"
+#include "ProcessLib/Deformation/GMatrixPolicy.h"
 #include "ProcessLib/Deformation/LinearBMatrix.h"
 #include "ProcessLib/Parameter/SpatialPosition.h"
+#include "ProcessLib/LocalAssemblerInterface.h"
+#include "ProcessLib/LocalAssemblerTraits.h"
+#include "ProcessLib/Parameter/Parameter.h"
 #include "ProcessLib/Utils/InitShapeMatrices.h"
 
 #include "LocalAssemblerInterface.h"
@@ -47,6 +53,7 @@ struct IntegrationPointData final
     typename BMatricesType::KelvinVectorType sigma_tensile, sigma_compressive,
         sigma;
     double strain_energy_tensile, elastic_energy;
+    double free_energy_density = 0;
 
     MaterialLib::Solids::MechanicsBase<DisplacementDim>& solid_material;
     std::unique_ptr<typename MaterialLib::Solids::MechanicsBase<
@@ -92,7 +99,7 @@ struct SecondaryData
 
 template <typename ShapeFunction, typename IntegrationMethod,
           int DisplacementDim>
-class PhaseFieldLocalAssembler : public PhaseFieldLocalAssemblerInterface
+class PhaseFieldLocalAssembler : public PhaseFieldLocalAssemblerInterface<DisplacementDim>
 {
 public:
     using ShapeMatricesType =
@@ -102,7 +109,15 @@ public:
     using ShapeMatrices = typename ShapeMatricesType::ShapeMatrices;
     using BMatricesType = BMatrixPolicyType<ShapeFunction, DisplacementDim>;
 
+    using NodalMatrixType = typename ShapeMatricesType::NodalMatrixType;
+    using NodalVectorType = typename ShapeMatricesType::NodalVectorType;
     using NodalForceVectorType = typename BMatricesType::NodalForceVectorType;
+    using NodalDisplacementVectorType =
+        typename BMatricesType::NodalForceVectorType;
+
+    using GMatricesType = GMatrixPolicyType<ShapeFunction, DisplacementDim>;
+    using GradientVectorType = typename GMatricesType::GradientVectorType;
+    using GradientMatrixType = typename GMatricesType::GradientMatrixType;
 
     PhaseFieldLocalAssembler(PhaseFieldLocalAssembler const&) = delete;
     PhaseFieldLocalAssembler(PhaseFieldLocalAssembler&&) = delete;
@@ -166,6 +181,29 @@ public:
         }
     }
 
+    /// Returns number of read integration points.
+    std::size_t setIPDataInitialConditions(std::string const& name,
+                                           double const* values,
+                                           int const integration_order) override
+    {
+        if (integration_order !=
+            static_cast<int>(_integration_method.getIntegrationOrder()))
+        {
+            OGS_FATAL(
+                "Setting integration point initial conditions; The integration "
+                "order of the local assembler for element %d is different from "
+                "the integration order in the initial condition.",
+                _element.getID());
+        }
+
+        if (name == "sigma_ip")
+        {
+            return setSigma(values);
+        }
+
+        return 0;
+    }
+
     void assemble(double const /*t*/, std::vector<double> const& /*local_x*/,
                   std::vector<double>& /*local_M_data*/,
                   std::vector<double>& /*local_K_data*/,
@@ -224,6 +262,40 @@ public:
         bool const use_monolithic_scheme,
         CoupledSolutionsForStaggeredScheme const* const cpl_xs) override;
 
+    void postTimestepConcrete(std::vector<double> const& /*local_x*/) override
+    {
+        unsigned const n_integration_points =
+            _integration_method.getNumberOfPoints();
+
+        SpatialPosition x_position;
+        x_position.setElementID(_element.getID());
+
+        for (unsigned ip = 0; ip < n_integration_points; ip++)
+        {
+            x_position.setIntegrationPoint(ip);
+
+            auto& ip_data = _ip_data[ip];
+
+            // Update free energy density needed for material forces.
+            ip_data.free_energy_density =
+                ip_data.solid_material.computeFreeEnergyDensity(
+                    _process_data.t, x_position, _process_data.dt, ip_data.eps,
+                    ip_data.sigma, *ip_data.material_state_variables);
+        }
+    }
+
+    std::vector<double> const& getMaterialForces(
+        std::vector<double> const& local_x,
+        std::vector<double>& nodal_values) override
+    {
+        return ProcessLib::SmallDeformation::getMaterialForces<
+            DisplacementDim, ShapeFunction, ShapeMatricesType,
+            typename BMatricesType::NodalForceVectorType,
+            NodalDisplacementVectorType, GradientVectorType,
+            GradientMatrixType>(local_x, nodal_values, _integration_method,
+                                _ip_data, _element, _is_axially_symmetric);
+    }
+
     Eigen::Map<const Eigen::RowVectorXd> getShapeMatrix(
         const unsigned integration_point) const override
     {
@@ -234,6 +306,71 @@ public:
     }
 
 private:
+    std::vector<double> const& getIntPtFreeEnergyDensity(
+        const double /*t*/,
+        GlobalVector const& /*current_solution*/,
+        NumLib::LocalToGlobalIndexMap const& /*dof_table*/,
+        std::vector<double>& cache) const override
+    {
+        cache.clear();
+        cache.reserve(_ip_data.size());
+
+        for (auto const& ip_data : _ip_data)
+        {
+            cache.push_back(ip_data.free_energy_density);
+        }
+
+        return cache;
+    }
+
+    std::size_t setSigma(double const* values)
+    {
+        auto const kelvin_vector_size =
+            MathLib::KelvinVector::KelvinVectorDimensions<
+                DisplacementDim>::value;
+        auto const n_integration_points = _ip_data.size();
+
+        std::vector<double> ip_sigma_values;
+        auto sigma_values =
+            Eigen::Map<Eigen::Matrix<double, kelvin_vector_size, Eigen::Dynamic,
+                                     Eigen::ColMajor> const>(
+                values, kelvin_vector_size, n_integration_points);
+
+        for (unsigned ip = 0; ip < n_integration_points; ++ip)
+        {
+            _ip_data[ip].sigma =
+                MathLib::KelvinVector::symmetricTensorToKelvinVector(
+                    sigma_values.col(ip));
+        }
+
+        return n_integration_points;
+    }
+
+    // TODO (naumov) This method is same as getIntPtSigma but for arguments and
+    // the ordering of the cache_mat.
+    // There should be only one.
+    std::vector<double> getSigma() const override
+    {
+        auto const kelvin_vector_size =
+            MathLib::KelvinVector::KelvinVectorDimensions<
+                DisplacementDim>::value;
+        auto const n_integration_points = _ip_data.size();
+
+        std::vector<double> ip_sigma_values;
+        auto cache_mat = MathLib::createZeroedMatrix<Eigen::Matrix<
+            double, Eigen::Dynamic, kelvin_vector_size, Eigen::RowMajor>>(
+            ip_sigma_values, n_integration_points, kelvin_vector_size);
+
+        for (unsigned ip = 0; ip < n_integration_points; ++ip)
+        {
+            auto const& sigma = _ip_data[ip].sigma;
+            cache_mat.row(ip) =
+                MathLib::KelvinVector::kelvinVectorToSymmetricTensor(sigma);
+        }
+
+        return ip_sigma_values;
+    }
+
     std::vector<double> const& getIntPtSigma(
         const double /*t*/,
         GlobalVector const& /*current_solution*/,
@@ -284,6 +421,18 @@ private:
         }
 
         return cache;
+    }
+
+    unsigned getNumberOfIntegrationPoints() const override
+    {
+        return _integration_method.getNumberOfPoints();
+    }
+
+    typename MaterialLib::Solids::MechanicsBase<
+        DisplacementDim>::MaterialStateVariables const&
+    getMaterialStateVariablesAt(unsigned integration_point) const override
+    {
+        return *_ip_data[integration_point].material_state_variables;
     }
 
     void assembleWithJacobianPhaseFiledEquations(
