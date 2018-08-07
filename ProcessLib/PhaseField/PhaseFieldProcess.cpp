@@ -12,9 +12,10 @@
 #include "PhaseFieldProcess.h"
 
 #include <cassert>
-
+#include <nlohmann/json.hpp>
 #include "NumLib/DOF/ComputeSparsityPattern.h"
 
+#include "BaseLib/Functional.h"
 #include "ProcessLib/Process.h"
 #include "ProcessLib/SmallDeformation/CreateLocalAssemblers.h"
 
@@ -48,6 +49,13 @@ PhaseFieldProcess<DisplacementDim>::PhaseFieldProcess(
         _nodal_forces = MeshLib::getOrCreateMeshProperty<double>(
             mesh, "NodalForces", MeshLib::MeshItemType::Node, DisplacementDim);
     }
+
+    _nodal_forces = MeshLib::getOrCreateMeshProperty<double>(
+        mesh, "NodalForces", MeshLib::MeshItemType::Node, DisplacementDim);
+
+    _material_forces = MeshLib::getOrCreateMeshProperty<double>(
+        mesh, "MaterialForces", MeshLib::MeshItemType::Node, DisplacementDim);
+
 }
 
 template <int DisplacementDim>
@@ -162,6 +170,11 @@ void PhaseFieldProcess<DisplacementDim>::initializeConcreteProcess(
         mesh.isAxiallySymmetric(), integration_order, _process_data);
 
     _secondary_variables.addSecondaryVariable(
+        "free_energy_density",
+        makeExtrapolator(1, getExtrapolator(), _local_assemblers,
+                         &LocalAssemblerInterface::getIntPtFreeEnergyDensity));
+
+    _secondary_variables.addSecondaryVariable(
         "sigma",
         makeExtrapolator(MathLib::KelvinVector::KelvinVectorType<
                              DisplacementDim>::RowsAtCompileTime,
@@ -174,6 +187,7 @@ void PhaseFieldProcess<DisplacementDim>::initializeConcreteProcess(
                              DisplacementDim>::RowsAtCompileTime,
                          getExtrapolator(), _local_assemblers,
                          &LocalAssemblerInterface::getIntPtEpsilon));
+
 }
 
 template <int DisplacementDim>
@@ -327,6 +341,12 @@ void PhaseFieldProcess<DisplacementDim>::postTimestepConcreteProcess(
             dof_tables, x, _process_data.t, _process_data.elastic_energy,
             _process_data.surface_energy, _process_data.pressure_work,
             _use_monolithic_scheme, _coupled_solutions);
+
+        std::unique_ptr<GlobalVector> material_forces;
+        ProcessLib::SmallDeformation::writeMaterialForces(
+            material_forces, _local_assemblers, *_local_to_global_index_map, x);
+
+        material_forces->copyValues(*_material_forces);
 
         INFO("Elastic energy: %g Surface energy: %g Pressure work: %g ",
              _process_data.elastic_energy, _process_data.surface_energy,

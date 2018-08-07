@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include <iostream>
+
 #include "MathLib/KelvinVector.h"
 
 #include "LinearElasticIsotropic.h"
@@ -66,17 +68,19 @@ public:
     }
 
     double computeFreeEnergyDensity(
-        double const t,
-        ProcessLib::SpatialPosition const& x,
-        double const dt,
+        double const /*t*/,
+        ProcessLib::SpatialPosition const& /*x*/,
+        double const /*dt*/,
         KelvinVector const& eps,
         KelvinVector const& sigma,
         typename MechanicsBase<DisplacementDim>::MaterialStateVariables const&
-            material_state_variables) const override
+            /*material_state_variables*/) const override
     {
         return LinearElasticIsotropic<DisplacementDim>::
             computeFreeEnergyDensity(
                 t, x, dt, eps, sigma, material_state_variables);
+        std::cout << "eps" << eps << std::endl;
+        std::cout << "sigma" << sigma << std::endl;
     }
 
     /** Decompose the stiffness into tensile and compressive part.
