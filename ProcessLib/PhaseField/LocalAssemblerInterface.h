@@ -11,7 +11,9 @@
 
 #include <vector>
 
+#include "MaterialLib/SolidModels/MechanicsBase.h"
 #include "NumLib/Extrapolation/ExtrapolatableElement.h"
+#include "ProcessLib/Deformation/MaterialForces.h"
 #include "ProcessLib/LocalAssemblerInterface.h"
 
 namespace ProcessLib
@@ -22,6 +24,12 @@ struct PhaseFieldLocalAssemblerInterface
     : public ProcessLib::LocalAssemblerInterface,
       public NumLib::ExtrapolatableElement
 {
+    virtual std::vector<double> const& getIntPtFreeEnergyDensity(
+        const double /*t*/,
+        GlobalVector const& /*current_solution*/,
+        NumLib::LocalToGlobalIndexMap const& /*dof_table*/,
+        std::vector<double>& cache) const = 0;
+
     virtual std::vector<double> const& getIntPtSigma(
         const double /*t*/,
         GlobalVector const& /*current_solution*/,

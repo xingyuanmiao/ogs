@@ -11,13 +11,20 @@
 
 #include <memory>
 #include <vector>
+#include <iostream>
 
 #include "MaterialLib/SolidModels/PhaseFieldExtension.h"
+#include "MaterialLib/SolidModels/LinearElasticIsotropicPhaseField.h"
 #include "MathLib/LinAlg/Eigen/EigenMapTools.h"
+#include "NumLib/Extrapolation/ExtrapolatableElement.h"
 #include "NumLib/Fem/FiniteElement/TemplateIsoparametric.h"
 #include "NumLib/Fem/ShapeMatrixPolicy.h"
 #include "ProcessLib/Deformation/BMatrixPolicy.h"
+#include "ProcessLib/Deformation/GMatrixPolicy.h"
 #include "ProcessLib/Deformation/LinearBMatrix.h"
+#include "ProcessLib/LocalAssemblerInterface.h"
+#include "ProcessLib/LocalAssemblerTraits.h"
+#include "ProcessLib/Parameter/Parameter.h"
 #include "ProcessLib/Parameter/SpatialPosition.h"
 #include "ProcessLib/Utils/InitShapeMatrices.h"
 
@@ -46,7 +53,7 @@ struct IntegrationPointData final
 
     typename BMatricesType::KelvinVectorType sigma_tensile, sigma_compressive,
         sigma;
-    double strain_energy_tensile, elastic_energy;
+    double strain_energy_tensile, elastic_energy, surface_energy;
 
     MaterialLib::Solids::MechanicsBase<DisplacementDim>& solid_material;
     std::unique_ptr<typename MaterialLib::Solids::MechanicsBase<
@@ -56,6 +63,7 @@ struct IntegrationPointData final
     typename BMatricesType::KelvinMatrixType C_tensile, C_compressive;
     double integration_weight;
     double history_variable, history_variable_prev;
+    double free_energy_density;
 
     void pushBackState()
     {
@@ -158,6 +166,8 @@ public:
             ip_data.sigma.setZero(kelvin_vector_size);
             ip_data.strain_energy_tensile = 0.0;
             ip_data.elastic_energy = 0.0;
+            ip_data.surface_energy = 0.0;
+            ip_data.free_energy_density = 0.0;
 
             ip_data.N = shape_matrices[ip].N;
             ip_data.dNdx = shape_matrices[ip].dNdx;
@@ -204,6 +214,24 @@ public:
             _ip_data[ip].pushBackState();
         }
     }
+    void postTimestepConcrete(std::vector<double> const& /*local_x*/) override
+    {
+        unsigned const n_integration_points =
+            _integration_method.getNumberOfPoints();
+
+        SpatialPosition x_position;
+        x_position.setElementID(_element.getID());
+
+        for (unsigned ip = 0; ip < n_integration_points; ip++)
+        {
+            x_position.setIntegrationPoint(ip);
+
+            auto& ip_data = _ip_data[ip];
+
+            // Update free energy density needed for material forces.
+            ip_data.free_energy_density = ip_data.elastic_energy + ip_data.surface_energy;
+        }
+    }
 
     void computeCrackIntegral(
         std::size_t mesh_item_id,
@@ -233,7 +261,46 @@ public:
         return Eigen::Map<const Eigen::RowVectorXd>(N.data(), N.size());
     }
 
+
 private:
+//    std::vector<double> const& getIntPtFreeEnergyDensity(
+//        const double /*t*/,
+//        GlobalVector const& /*current_solution*/,
+//        NumLib::LocalToGlobalIndexMap const& /*dof_table*/,
+//        std::vector<double>& cache) const override
+//    {
+//        auto const num_intpts = _ip_data.size();
+
+//        cache.clear();
+
+//        for (unsigned ip = 0; ip < num_intpts; ++ip)
+//        {
+//            auto const& elastic_energy = _ip_data[ip].elastic_energy;
+//            auto const& surface_energy = _ip_data[ip].surface_energy;
+//            auto const& free_energy_density = _ip_data[ip].free_energy_density;
+//            free_energy_density = elastic_energy + surface_energy;
+//            cache.push_back(free_energy_density);
+//        }
+
+//        return cache;
+//    }
+    std::vector<double> const& getIntPtFreeEnergyDensity(
+        const double /*t*/,
+        GlobalVector const& /*current_solution*/,
+        NumLib::LocalToGlobalIndexMap const& /*dof_table*/,
+        std::vector<double>& cache) const override
+    {
+        cache.clear();
+        cache.reserve(_ip_data.size());
+
+        for (auto const& ip_data : _ip_data)
+        {
+            cache.push_back(ip_data.free_energy_density);
+        }
+
+        return cache;
+    }
+
     std::vector<double> const& getIntPtSigma(
         const double /*t*/,
         GlobalVector const& /*current_solution*/,

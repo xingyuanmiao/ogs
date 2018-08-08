@@ -13,8 +13,11 @@
 
 #include <cassert>
 
+#include <nlohmann/json.hpp>
+
 #include "NumLib/DOF/ComputeSparsityPattern.h"
 
+#include "BaseLib/Functional.h"
 #include "ProcessLib/Process.h"
 #include "ProcessLib/SmallDeformation/CreateLocalAssemblers.h"
 
@@ -160,6 +163,11 @@ void PhaseFieldProcess<DisplacementDim>::initializeConcreteProcess(
         DisplacementDim, PhaseFieldLocalAssembler>(
         mesh.getElements(), dof_table, _local_assemblers,
         mesh.isAxiallySymmetric(), integration_order, _process_data);
+
+    _secondary_variables.addSecondaryVariable(
+        "free_energy_density",
+        makeExtrapolator(1, getExtrapolator(), _local_assemblers,
+                         &LocalAssemblerInterface::getIntPtFreeEnergyDensity));
 
     _secondary_variables.addSecondaryVariable(
         "sigma",
@@ -321,6 +329,9 @@ void PhaseFieldProcess<DisplacementDim>::postTimestepConcreteProcess(
 
         dof_tables.emplace_back(*_local_to_global_index_map);
         dof_tables.emplace_back(*_local_to_global_index_map_single_component);
+        GlobalExecutor::executeMemberOnDereferenced(
+            &LocalAssemblerInterface::postTimestep, _local_assemblers,
+            *_local_to_global_index_map, x);
 
         GlobalExecutor::executeMemberOnDereferenced(
             &LocalAssemblerInterface::computeEnergy, _local_assemblers,
