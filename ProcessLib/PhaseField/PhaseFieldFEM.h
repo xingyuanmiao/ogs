@@ -11,13 +11,20 @@
 
 #include <memory>
 #include <vector>
+#include <iostream>
 
 #include "MaterialLib/SolidModels/PhaseFieldExtension.h"
+#include "MaterialLib/SolidModels/LinearElasticIsotropicPhaseField.h"
 #include "MathLib/LinAlg/Eigen/EigenMapTools.h"
+#include "NumLib/Extrapolation/ExtrapolatableElement.h"
 #include "NumLib/Fem/FiniteElement/TemplateIsoparametric.h"
 #include "NumLib/Fem/ShapeMatrixPolicy.h"
 #include "ProcessLib/Deformation/BMatrixPolicy.h"
+#include "ProcessLib/Deformation/GMatrixPolicy.h"
 #include "ProcessLib/Deformation/LinearBMatrix.h"
+#include "ProcessLib/LocalAssemblerInterface.h"
+#include "ProcessLib/LocalAssemblerTraits.h"
+#include "ProcessLib/Parameter/Parameter.h"
 #include "ProcessLib/Parameter/SpatialPosition.h"
 #include "ProcessLib/Utils/InitShapeMatrices.h"
 
@@ -56,6 +63,7 @@ struct IntegrationPointData final
     typename BMatricesType::KelvinMatrixType C_tensile, C_compressive;
     double integration_weight;
     double history_variable, history_variable_prev;
+    double free_energy_density = 0;
 
     void pushBackState()
     {
@@ -205,6 +213,29 @@ public:
         }
     }
 
+    void postTimestepConcrete(std::vector<double> const& /*local_x*/) override
+    {
+        unsigned const n_integration_points =
+            _integration_method.getNumberOfPoints();
+
+        SpatialPosition x_position;
+        x_position.setElementID(_element.getID());
+
+        for (unsigned ip = 0; ip < n_integration_points; ip++)
+        {
+            x_position.setIntegrationPoint(ip);
+
+            auto& ip_data = _ip_data[ip];
+
+            // Update free energy density needed for material forces.
+            ip_data.free_energy_density =
+                ip_data.solid_material.computeFreeEnergyDensity(
+                    _process_data.t, x_position, _process_data.dt, ip_data.eps,
+                    ip_data.sigma, *ip_data.material_state_variables);
+            std::cout << "free energy" << ip_data.free_energy_density << std::endl;
+        }
+    }
+
     void computeCrackIntegral(
         std::size_t mesh_item_id,
         std::vector<
@@ -233,7 +264,25 @@ public:
         return Eigen::Map<const Eigen::RowVectorXd>(N.data(), N.size());
     }
 
+
 private:
+    std::vector<double> const& getIntPtFreeEnergyDensity(
+        const double /*t*/,
+        GlobalVector const& /*current_solution*/,
+        NumLib::LocalToGlobalIndexMap const& /*dof_table*/,
+        std::vector<double>& cache) const override
+    {
+        cache.clear();
+        cache.reserve(_ip_data.size());
+
+        for (auto const& ip_data : _ip_data)
+        {
+            cache.push_back(ip_data.free_energy_density);
+        }
+
+        return cache;
+    }
+
     std::vector<double> const& getIntPtSigma(
         const double /*t*/,
         GlobalVector const& /*current_solution*/,
