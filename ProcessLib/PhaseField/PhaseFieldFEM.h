@@ -13,6 +13,7 @@
 #include <vector>
 #include <iostream>
 
+#include "MaterialLib/PhysicalConstant.h"
 #include "MaterialLib/SolidModels/PhaseFieldExtension.h"
 #include "MaterialLib/SolidModels/LinearElasticIsotropicPhaseField.h"
 #include "MathLib/LinAlg/Eigen/EigenMapTools.h"
@@ -111,6 +112,12 @@ public:
     using BMatricesType = BMatrixPolicyType<ShapeFunction, DisplacementDim>;
 
     using NodalForceVectorType = typename BMatricesType::NodalForceVectorType;
+    using StiffnessMatrixType = typename BMatricesType::StiffnessMatrixType;
+    using NodalDisplacementVectorType =
+        typename BMatricesType::NodalForceVectorType;
+    using GMatricesType = GMatrixPolicyType<ShapeFunction, DisplacementDim>;
+    using GradientVectorType = typename GMatricesType::GradientVectorType;
+    using GradientMatrixType = typename GMatricesType::GradientMatrixType;
 
     PhaseFieldLocalAssembler(PhaseFieldLocalAssembler const&) = delete;
     PhaseFieldLocalAssembler(PhaseFieldLocalAssembler&&) = delete;
@@ -259,6 +266,17 @@ public:
 
         // assumes N is stored contiguously in memory
         return Eigen::Map<const Eigen::RowVectorXd>(N.data(), N.size());
+    }
+    std::vector<double> const& getMaterialForces(
+        std::vector<double> const& local_x,
+        std::vector<double>& nodal_values) override
+    {
+        return ProcessLib::SmallDeformation::getMaterialForces<
+            DisplacementDim, ShapeFunction, ShapeMatricesType,
+            typename BMatricesType::NodalForceVectorType,
+            NodalDisplacementVectorType, GradientVectorType,
+            GradientMatrixType>(local_x, nodal_values, _integration_method,
+                                _ip_data, _element, _is_axially_symmetric);
     }
 
 

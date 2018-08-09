@@ -114,6 +114,7 @@ private:
         _local_to_global_index_map_single_component;
 
     MeshLib::PropertyVector<double>* _nodal_forces = nullptr;
+    MeshLib::PropertyVector<double>* _material_forces = nullptr;
 
     /// Sparsity pattern for the phase field equation, and it is initialized
     ///  only if the staggered scheme is used.

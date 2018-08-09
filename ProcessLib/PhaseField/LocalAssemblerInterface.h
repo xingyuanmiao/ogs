@@ -22,6 +22,7 @@ namespace PhaseField
 {
 struct PhaseFieldLocalAssemblerInterface
     : public ProcessLib::LocalAssemblerInterface,
+      public ProcessLib::SmallDeformation::MaterialForcesInterface,
       public NumLib::ExtrapolatableElement
 {
     virtual std::vector<double> const& getIntPtFreeEnergyDensity(

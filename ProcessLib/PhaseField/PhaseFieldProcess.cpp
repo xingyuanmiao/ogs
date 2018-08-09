@@ -23,6 +23,8 @@
 
 #include "PhaseFieldFEM.h"
 
+#include "ProcessLib/Deformation/MaterialForces.h"
+
 namespace ProcessLib
 {
 namespace PhaseField
@@ -51,6 +53,11 @@ PhaseFieldProcess<DisplacementDim>::PhaseFieldProcess(
         _nodal_forces = MeshLib::getOrCreateMeshProperty<double>(
             mesh, "NodalForces", MeshLib::MeshItemType::Node, DisplacementDim);
     }
+
+    _nodal_forces = MeshLib::getOrCreateMeshProperty<double>(
+            mesh, "NodalForces", MeshLib::MeshItemType::Node, DisplacementDim);
+    _material_forces = MeshLib::getOrCreateMeshProperty<double>(
+        mesh, "MaterialForces", MeshLib::MeshItemType::Node, DisplacementDim);
 }
 
 template <int DisplacementDim>
@@ -342,6 +349,11 @@ void PhaseFieldProcess<DisplacementDim>::postTimestepConcreteProcess(
         INFO("Elastic energy: %g Surface energy: %g Pressure work: %g ",
              _process_data.elastic_energy, _process_data.surface_energy,
              _process_data.pressure_work);
+        std::unique_ptr<GlobalVector> material_forces;
+        ProcessLib::SmallDeformation::writeMaterialForces(
+            material_forces, _local_assemblers, *_local_to_global_index_map, x);
+
+        material_forces->copyValues(*_material_forces);
     }
 }
 

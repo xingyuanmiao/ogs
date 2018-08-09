@@ -175,7 +175,7 @@ void writeMaterialForces(
     MathLib::LinAlg::set(*material_forces, 0);
 
     GlobalExecutor::executeDereferenced(
-        [](const std::size_t mesh_item_id,
+        [&](const std::size_t mesh_item_id,
            LocalAssemblerInterface& local_assembler,
            const NumLib::LocalToGlobalIndexMap& dof_table,
            GlobalVector const& x,
